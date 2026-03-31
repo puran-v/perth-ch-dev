@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function VerifyEmailPage() {
   return (
-    <main className=" min-h-screen py-5 flex flex-col md:flex-row">
+    <main className="min-h-screen py-5 flex flex-col md:flex-row">
       {/* Left panel */}
       <div className="hidden rounded-4xl md:flex md:w-[46%] bg-[#1a2f6e] flex-col items-center justify-center gap-6 p-10">
         <Image
