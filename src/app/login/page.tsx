@@ -6,6 +6,7 @@ export const metadata = {
   title: "Log In — The Fun Depot",
 };
 
+// dev (jay): two-column layout — branded left panel on md+, stacked logo+form on mobile
 export default function LoginPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">
@@ -26,7 +27,7 @@ export default function LoginPage() {
 
       {/* Right panel — full screen on mobile, right half on md+ */}
       <div className="flex flex-1 flex-col min-h-screen md:min-h-0">
-        {/* Mobile-only logo header */}
+        {/* Mobile-only logo header — replaces left panel on small screens */}
         <div className="flex md:hidden items-center justify-center bg-[#1a2f6e] py-8 px-6">
           <Image
             src={logo}
@@ -40,6 +41,7 @@ export default function LoginPage() {
 
         {/* Form area — fills remaining height */}
         <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-white">
+          {/* dev (jay): w-full lets LoginForm control its own max-width */}
           <div className="w-full">
             <LoginForm />
           </div>

@@ -22,8 +22,10 @@ const OtpIcon = () => (
   </svg>
 );
 
+// dev (jay): 60s cooldown prevents resend spam before real rate-limiting is wired up
 const RESEND_SECONDS = 60;
 
+// dev (jay): shared for both signup and reset flows — mode param drives back-link and post-verify redirect
 export default function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,6 +38,7 @@ export default function VerifyEmailForm() {
   const [error, setError] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(RESEND_SECONDS);
 
+  // dev (jay): timeout-based ticker — cleans up on unmount to avoid state updates on dead component
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
@@ -53,6 +56,7 @@ export default function VerifyEmailForm() {
     // TODO: replace with real OTP verification call
     await new Promise((r) => setTimeout(r, 1500));
     setLoading(false);
+    // dev (jay): both modes land on /login after verify — may diverge when reset needs a new-password step
     if (mode === "reset") {
       router.push("/login");
     } else {
@@ -66,6 +70,7 @@ export default function VerifyEmailForm() {
     // TODO: replace with real resend call
     await new Promise((r) => setTimeout(r, 1000));
     setResending(false);
+    // dev (jay): resets countdown after resend so user can't spam again immediately
     setCountdown(RESEND_SECONDS);
   };
 
@@ -91,7 +96,7 @@ export default function VerifyEmailForm() {
             error={error}
             icon={<OtpIcon />}
             maxLength={6}
-            autoComplete="one-time-code"
+            autoComplete="one-time-code" // dev (jay): hints browser/autofill to offer SMS OTP on mobile
             rightElement={
               <button
                 type="button"
@@ -99,6 +104,7 @@ export default function VerifyEmailForm() {
                 disabled={countdown > 0 || resending}
                 className={[
                   "text-xs font-medium whitespace-nowrap transition-colors",
+                  // dev (jay): greyed + not-allowed cursor while cooling down, active brand color when ready
                   countdown > 0 || resending
                     ? "text-gray-400 cursor-not-allowed"
                     : "text-[#1a2f6e] hover:underline cursor-pointer",

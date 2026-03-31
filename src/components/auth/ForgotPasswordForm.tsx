@@ -22,6 +22,7 @@ const EmailIcon = () => (
   </svg>
 );
 
+// dev (jay): step 1 of password reset flow — collects email, then hands off to verify-email with mode=reset
 export default function ForgotPasswordForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -30,6 +31,7 @@ export default function ForgotPasswordForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // dev (jay): inline validation — no lib needed for a single field
     if (!email) {
       setError("Email is required.");
       return;
@@ -43,6 +45,7 @@ export default function ForgotPasswordForm() {
     // TODO: replace with real reset call
     await new Promise((r) => setTimeout(r, 1500));
     setLoading(false);
+    // dev (jay): passes email via query param so verify-email can display masked address
     router.push(`/verify-email?email=${encodeURIComponent(email)}&mode=reset`);
   };
 

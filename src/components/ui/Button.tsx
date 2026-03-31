@@ -3,6 +3,7 @@ import React from "react";
 type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
 type ButtonSize = "sm" | "md" | "lg";
 
+// dev (jay): shared button primitive — all auth CTAs use this, keeps hover/focus/disabled states consistent
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -11,6 +12,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
 }
 
+// dev (jay): lookup table avoids long className ternaries at the call site
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
     "bg-[#1a2f6e] text-white hover:bg-[#15255a] active:bg-[#111e4a] disabled:bg-[#1a2f6e]/50",
@@ -40,6 +42,7 @@ export default function Button({
 }: ButtonProps) {
   return (
     <button
+      // dev (jay): loading also disables — prevents double-submit while awaiting API
       disabled={disabled || loading}
       className={[
         "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/50 disabled:cursor-not-allowed",
@@ -52,6 +55,7 @@ export default function Button({
         .join(" ")}
       {...props}
     >
+      {/* dev (jay): spinner shown inline — width reserved by gap-2 so text doesn't shift */}
       {loading && (
         <svg
           className="h-4 w-4 animate-spin"
