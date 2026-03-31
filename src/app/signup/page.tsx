@@ -6,6 +6,7 @@ export const metadata = {
   title: "Admin Sign Up — The Fun Depot",
 };
 
+// dev (jay): same two-column shell as login page — keeps layout consistent across auth routes
 export default function SignUpPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">

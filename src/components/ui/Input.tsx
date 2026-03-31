@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 
+// dev (jay): shared input primitive — keeps form styling consistent across auth pages
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
-  rightElement?: React.ReactNode;
+  rightElement?: React.ReactNode; // dev (jay): slot for toggle buttons (e.g. show/hide password)
 }
 
 export default function Input({
@@ -18,6 +19,7 @@ export default function Input({
   id,
   ...props
 }: InputProps) {
+  // dev (jay): auto-generate id from label so htmlFor links correctly without requiring caller to pass id
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
 
   return (
@@ -33,6 +35,7 @@ export default function Input({
       <div
         className={[
           "flex items-center gap-2 rounded-full border bg-white px-4 h-12 transition-colors",
+          // dev (jay): red ring on error state, brand blue on focus — clear visual feedback for validation
           error
             ? "border-red-400 focus-within:ring-2 focus-within:ring-red-300"
             : "border-gray-200 focus-within:border-[#1a2f6e] focus-within:ring-2 focus-within:ring-[#1a2f6e]/20",
@@ -48,6 +51,7 @@ export default function Input({
         )}
         <input
           id={inputId}
+          // dev (jay): min-w-0 prevents flex overflow on small screens
           className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 outline-none min-w-0"
           {...props}
         />
@@ -64,11 +68,13 @@ export default function Input({
   );
 }
 
+// dev (jay): wraps Input — hides type/rightElement from caller, owns visibility state internally
 interface PasswordInputProps extends Omit<InputProps, "type" | "rightElement"> {}
 
 export function PasswordInput(props: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
 
+  // dev (jay): inline SVG avoids an icon lib dep; swaps paths based on visible state
   const EyeIcon = () => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -117,6 +123,7 @@ export function PasswordInput(props: PasswordInputProps) {
       type={visible ? "text" : "password"}
       icon={<LockIcon />}
       rightElement={
+        // dev (jay): type="button" prevents accidental form submit on click
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}

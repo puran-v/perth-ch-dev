@@ -7,6 +7,7 @@ export const metadata = {
   title: "Verify Email — The Fun Depot",
 };
 
+// dev (jay): page shell for OTP step — used by both signup and reset flows via mode query param
 export default function VerifyEmailPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">
@@ -42,6 +43,7 @@ export default function VerifyEmailPage() {
         {/* Form area */}
         <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-white">
           <div className="w-full">
+            {/* dev (jay): Suspense required — VerifyEmailForm uses useSearchParams which needs a boundary */}
             <Suspense>
               <VerifyEmailForm />
             </Suspense>

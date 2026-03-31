@@ -23,11 +23,13 @@ const EmailIcon = () => (
   </svg>
 );
 
+// dev (jay): admin login form — no redirect yet, pending real auth integration
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  // dev (jay): per-field errors so each input shows its own message independently
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const validate = () => {
@@ -42,6 +44,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
+    // dev (jay): bail early and surface errors before hitting the API
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -82,6 +85,7 @@ export default function LoginForm() {
 
         <div>
           <p className="mb-1.5 text-sm font-medium text-gray-700">Password</p>
+          {/* dev (jay): autoComplete="current-password" enables browser password manager */}
           <PasswordInput
             placeholder="Password"
             value={password}

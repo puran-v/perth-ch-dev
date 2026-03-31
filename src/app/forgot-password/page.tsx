@@ -6,6 +6,7 @@ export const metadata = {
   title: "Forgot Password — The Fun Depot",
 };
 
+// dev (jay): page shell for reset flow step 1 — same layout as login/signup for visual continuity
 export default function ForgotPasswordPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">

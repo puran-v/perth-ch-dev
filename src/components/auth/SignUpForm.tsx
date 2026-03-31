@@ -8,6 +8,7 @@ import Checkbox from "@/components/ui/Checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// dev (jay): admin sign-up form — on success redirects to verify-email with mode=signup
 const EmailIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -47,6 +48,7 @@ export default function SignUpForm() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  // dev (jay): per-field errors — same pattern as LoginForm for consistency
   const [errors, setErrors] = useState<{
     fullName?: string;
     email?: string;
@@ -60,6 +62,7 @@ export default function SignUpForm() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       newErrors.email = "Enter a valid email address.";
     if (!password) newErrors.password = "Password is required.";
+    // dev (jay): 8-char min enforced here and should match backend rule
     else if (password.length < 8)
       newErrors.password = "Password must be at least 8 characters.";
     return newErrors;
@@ -77,6 +80,7 @@ export default function SignUpForm() {
     // TODO: replace with real sign-up call
     await new Promise((r) => setTimeout(r, 1500));
     setLoading(false);
+    // dev (jay): passes email so verify-email can display it and resend to the right address
     router.push(`/verify-email?email=${encodeURIComponent(email)}&mode=signup`);
   };
 
