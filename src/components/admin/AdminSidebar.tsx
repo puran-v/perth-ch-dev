@@ -96,7 +96,7 @@ function TenantSwitcher({ tenant }: { tenant: TenantInfo }) {
   );
 }
 
-function NavBadge({ badge }: { badge: NavItem["badge"] }) {
+function NavBadge({ badge, isActive }: { badge: NavItem["badge"]; isActive: boolean }) {
   if (!badge) return null;
 
   if (badge.type === "notification") {
@@ -107,9 +107,9 @@ function NavBadge({ badge }: { badge: NavItem["badge"] }) {
     );
   }
 
-  // status badge (e.g. "Incomplete", "Set Up")
+  // status badge (e.g. "Incomplete", "Set Up") — orange on active, amber on dark bg
   return (
-    <span className="ml-auto text-xs font-medium text-amber-300">
+    <span className={`ml-auto text-xs font-medium ${isActive ? "text-orange-500" : "text-amber-300"}`}>
       {badge.value}
     </span>
   );
@@ -126,20 +126,20 @@ function SidebarNavItem({
     <Link
       href={item.href}
       className={[
-        "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+        "group flex items-center gap-3 rounded-[8px] px-3 py-2.5 font-inter text-[12px] font-bold leading-[170%] tracking-[0.2px] align-middle transition-colors",
         isActive
-          ? "bg-white/15 text-white"
+          ? "bg-white text-[#042E93]"
           : "text-white/70 hover:bg-white/8 hover:text-white",
       ].join(" ")}
     >
       <item.icon
         className={[
           "w-5 h-5 shrink-0 transition-colors",
-          isActive ? "text-white" : "text-white/50 group-hover:text-white/70",
+          isActive ? "text-[#042E93]" : "text-white/50 group-hover:text-white/70",
         ].join(" ")}
       />
-      <span>{item.label}</span>
-      <NavBadge badge={item.badge} />
+      <span className={`${isActive ? "text-[#042E93]": "text-white "}`}>{item.label}</span>
+      <NavBadge badge={item.badge} isActive={isActive} />
     </Link>
   );
 }
@@ -183,7 +183,7 @@ function ComingSoonCard({ module }: { module: ComingSoonModule }) {
 function UserProfile({ user }: { user: UserInfo }) {
   return (
     <div className="flex items-center gap-3 px-6 py-5 border-t border-white/10">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[#0a1a4a]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[#042E93]">
         {user.avatarInitials}
       </span>
       <div className="min-w-0">
@@ -207,7 +207,7 @@ export default function AdminSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-[280px] shrink-0 flex-col bg-[#0a1a4a] overflow-hidden">
+    <aside className="flex h-screen w-[280px] shrink-0 flex-col bg-[#042E93] overflow-hidden">
       <SidebarLogo />
       <TenantSwitcher tenant={tenant} />
 

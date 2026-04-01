@@ -10,6 +10,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-inter: var(--font-inter);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,7 +35,7 @@ body {
 /* Sidebar-only scrollbar to keep it visually aligned with the navy panel */
 .sidebar-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255 255 255 / 0.24) #0a1a4a;
+  scrollbar-color: rgba(255 255 255 / 0.24) #042E93;
   scrollbar-gutter: stable;
 }
 
@@ -43,13 +44,13 @@ body {
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-track {
-  background: #0a1a4a;
+  background: #042E93;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255 255 255 / 0.24);
   border-radius: 999px;
-  border: 2px solid #0a1a4a;
+  border: 2px solid #042E93;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
