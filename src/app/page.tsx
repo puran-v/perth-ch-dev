@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import logo from "@/assets/logo.png";
+const logo = "/assets/logo.png";
 
 // dev (jay): landing splash — only entry point, redirects admin to /login
 export default function Home() {

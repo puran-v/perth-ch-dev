@@ -1,5 +1,5 @@
 import Image from "next/image";
-import logo from "@/assets/logo.png";
+const logo = "/assets/logo.png";
 import { Suspense } from "react";
 import VerifyEmailForm from "@/components/auth/VerifyEmailForm";
 
