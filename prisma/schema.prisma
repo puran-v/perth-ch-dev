@@ -11,3 +11,40 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+  DRIVER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  fullName     String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(ADMIN)
+  isVerified   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  emailVerificationOtps EmailVerificationOtp[]
+
+  @@map("users")
+}
+
+model EmailVerificationOtp {
+  id         String    @id @default(cuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_otps")
+}
