@@ -16,8 +16,11 @@ interface TopBarProps {
   searchPlaceholder?: string;
   actions?: React.ReactNode;
   notifications?: number;
+  showDateBar?: boolean;
   className?: string;
 }
+
+
 
 export function TopBar({
   title,
@@ -27,13 +30,14 @@ export function TopBar({
   searchPlaceholder = 'Search...',
   actions,
   notifications,
+  showDateBar = false,
   className = '',
 }: TopBarProps) {
   return (
-    <div className={`flex flex-col gap-4 ${className}`}>
+    <div className={`flex flex-col ${className}`}>
       {/* Breadcrumbs */}
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex items-center gap-1.5 text-sm" aria-label="Breadcrumb">
+        <nav className="flex items-center gap-1.5 text-sm mb-4" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => (
             <React.Fragment key={index}>
               {index > 0 && (
@@ -59,9 +63,9 @@ export function TopBar({
       {/* Title row */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
           {subtitle && (
-            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+            <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -73,12 +77,13 @@ export function TopBar({
             />
           )}
           {actions}
-          {notifications !== undefined && (
+          {/* Only show bell here if date bar is NOT shown (avoid duplicate) */}
+          {!showDateBar && notifications !== undefined && (
             <button
-              className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
               aria-label="Notifications"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -87,7 +92,7 @@ export function TopBar({
                 />
               </svg>
               {notifications > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4.5 h-4.5 px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-4.5 h-4.5 px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
                   {notifications}
                 </span>
               )}
