@@ -11,6 +11,13 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-inter: var(--font-inter);
+  --color-primary: #042E93;
+  --color-primary-light: #E0EDFF;
+  --color-success: #16A34A;
+  --color-success-light: #DCFCE7;
+  --color-warning: #FF9F29;
+  --color-danger: #FF4747;
+  --color-info: #0062FF;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,4 +62,13 @@ body {
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255 255 255 / 0.34);
+}
+
+/* Content area — hidden scrollbar, still scrollable */
+.content-scrollbar {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE / Edge */
+}
+.content-scrollbar::-webkit-scrollbar {
+  display: none;                  /* Chrome / Safari / Opera */
 }
