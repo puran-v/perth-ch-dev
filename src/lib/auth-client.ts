@@ -16,7 +16,11 @@
 // Impact: new client-side auth utilities for token and user management
 // Reason: PROJECT_RULES.md §1.1 requires shared getToken, getCurrentUser functions
 
-const TOKEN_KEY = "perthbch_token";
+// Old Author: samir
+// New Author: samir
+// Impact: updated to support cookie-based session auth (login sets HttpOnly session_token cookie)
+// Reason: login API uses DB sessions with cookies, not JWT tokens in localStorage
+
 const USER_KEY = "perthbch_user";
 
 /** The authenticated user shape stored on the client */
@@ -25,36 +29,6 @@ export interface AuthUser {
   fullName: string;
   email: string;
   role: "ADMIN" | "MANAGER" | "STAFF" | "DRIVER";
-  orgId: string;
-}
-
-/**
- * Retrieves the JWT token from localStorage.
- * Returns null if no token is stored or if running on the server.
- *
- * @returns The stored JWT token or null
- *
- * @author samir
- * @created 2026-04-02
- * @module Shared - Auth Client
- */
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-/**
- * Stores the JWT token in localStorage.
- *
- * @param token - The JWT token to store
- *
- * @author samir
- * @created 2026-04-02
- * @module Shared - Auth Client
- */
-export function setToken(token: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(TOKEN_KEY, token);
 }
 
 /**
@@ -94,8 +68,9 @@ export function setCurrentUser(user: AuthUser): void {
 }
 
 /**
- * Clears all auth data from localStorage (token + user).
+ * Clears auth data from localStorage.
  * Call this on logout or when the session expires.
+ * The HttpOnly session cookie is cleared by the logout API.
  *
  * @author samir
  * @created 2026-04-02
@@ -103,21 +78,20 @@ export function setCurrentUser(user: AuthUser): void {
  */
 export function clearAuth(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
 /**
- * Checks if the user is currently authenticated.
- * Simply verifies a token exists — does NOT validate it.
- * Server-side validation happens on every API call.
+ * Checks if the user is currently authenticated on the client side.
+ * Verifies user data exists in localStorage — the actual session
+ * validation happens server-side via the HttpOnly session_token cookie.
  *
- * @returns Whether a token is present
+ * @returns Whether user data is present
  *
  * @author samir
  * @created 2026-04-02
  * @module Shared - Auth Client
  */
 export function isAuthenticated(): boolean {
-  return getToken() !== null;
+  return getCurrentUser() !== null;
 }

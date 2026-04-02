@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Suspense } from "react";
 const logo = "/assets/logo.png";
 import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
 
@@ -44,7 +45,10 @@ export default function ResetPasswordPage() {
         {/* Form area */}
         <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-white">
           <div className="w-full">
-            <ResetPasswordForm />
+            {/* Suspense required — ResetPasswordForm uses useSearchParams which needs a boundary */}
+            <Suspense>
+              <ResetPasswordForm />
+            </Suspense>
           </div>
         </div>
       </div>

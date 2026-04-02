@@ -15,20 +15,18 @@
  * @module Shared - Auth Hook
  */
 
-// Author: samir
-// Impact: new auth state management hook for client components
-// Reason: PROJECT_RULES.md §1.1 requires shared getCurrentUser, getToken, etc.
+// Old Author: samir
+// New Author: samir
+// Impact: updated login() to work with cookie-based session (no JWT token param)
+// Reason: login API sets HttpOnly session_token cookie, not JWT in response body
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   type AuthUser,
-  getToken,
-  setToken,
   getCurrentUser,
   setCurrentUser,
   clearAuth,
-  isAuthenticated as checkAuth,
 } from "@/lib/auth-client";
 
 /** Return type of the useAuth hook */
@@ -40,21 +38,25 @@ interface UseAuthReturn {
   /** Whether auth state is still loading from storage */
   isLoading: boolean;
   /**
-   * Stores auth credentials and redirects to dashboard.
+   * Stores user data in localStorage and redirects to dashboard.
+   * Auth session is managed via HttpOnly cookie set by the login API.
    *
-   * @param token - The JWT token from the login API
-   * @param user - The authenticated user data
+   * @param user - The authenticated user data from login response
    */
-  login: (token: string, user: AuthUser) => void;
-  /** Clears auth data and redirects to login page. */
-  logout: () => void;
+  login: (user: AuthUser) => void;
+  /**
+   * Clears client auth data and calls logout API to destroy server session.
+   * Redirects to login page.
+   */
+  logout: () => Promise<void>;
 }
 
 /**
  * Hook for managing client-side authentication state.
  *
  * Initialises from localStorage on mount, provides login/logout
- * actions that update both storage and React state.
+ * actions that update both storage and React state. Server-side auth
+ * is handled via HttpOnly session_token cookie set by the login API.
  *
  * @returns Auth state and actions
  *
@@ -70,16 +72,14 @@ export function useAuth(): UseAuthReturn {
   // Hydrate auth state from localStorage on mount
   useEffect(() => {
     const storedUser = getCurrentUser();
-    const hasToken = checkAuth();
-    if (hasToken && storedUser) {
+    if (storedUser) {
       setUser(storedUser);
     }
     setIsLoading(false);
   }, []);
 
   const login = useCallback(
-    (token: string, userData: AuthUser) => {
-      setToken(token);
+    (userData: AuthUser) => {
       setCurrentUser(userData);
       setUser(userData);
       router.push("/dashboard");
@@ -87,7 +87,13 @@ export function useAuth(): UseAuthReturn {
     [router]
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Call logout API to destroy the server session and clear the cookie
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Continue with client-side cleanup even if API fails
+    }
     clearAuth();
     setUser(null);
     router.push("/login");
@@ -95,7 +101,7 @@ export function useAuth(): UseAuthReturn {
 
   return {
     user,
-    isAuthenticated: !!user && !!getToken(),
+    isAuthenticated: !!user,
     isLoading,
     login,
     logout,
