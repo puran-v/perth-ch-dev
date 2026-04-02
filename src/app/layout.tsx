@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 // dev (jay): Geist loaded via next/font — zero layout shift, self-hosted automatically
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import "react-toastify/dist/ReactToastify.css";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { ToastProvider } from "@/components/providers/ToastProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +40,10 @@ export default function RootLayout({
     >
       {/* dev (jay): flex flex-col so full-height page layouts work without extra wrappers */}
       <body className="min-h-full flex flex-col">
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          {children}
+          <ToastProvider />
+        </QueryProvider>
       </body>
     </html>
   );

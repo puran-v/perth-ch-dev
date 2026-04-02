@@ -8,6 +8,7 @@ import Checkbox from "@/components/ui/Checkbox";
 import Link from "next/link";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 import { useAuth } from "@/hooks";
+import { toast } from "react-toastify";
 
 // Old Author: jay
 // New Author: samir
@@ -127,7 +128,8 @@ export default function LoginForm() {
         return;
       }
 
-      // Success — store user data and redirect (cookie is set by API response)
+      // Success — show toast, store user data, and redirect (cookie is set by API response)
+      toast.success(`Welcome back, ${data.data.fullName}!`);
       login({
         id: data.data.id,
         fullName: data.data.fullName,
