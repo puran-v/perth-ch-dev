@@ -50,7 +50,7 @@ const INITIAL_PAYMENT_DATA = {
   labelOnInvoice: 'Credit Card Processing Fee',
 };
 
-export default function AdminDashboardPage() {
+export default function OrgSetupPage() {
   const handleSaveDraft = () => {
     console.log('Saving draft...');
   };

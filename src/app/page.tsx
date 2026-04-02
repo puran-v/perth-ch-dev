@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 const logo = "/assets/logo.png";
 
-// dev (jay): landing splash — only entry point, redirects admin to /login
+// dev (jay): landing splash — only entry point, redirects user to /login
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center min-h-screen bg-gray-50">
@@ -18,7 +18,7 @@ export default function Home() {
         />
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-3xl font-bold text-gray-900">Welcome to The Fun Depot</h1>
-          <p className="text-gray-500 text-base">Admin portal — please log in to continue.</p>
+          <p className="text-gray-500 text-base">Dashboard portal — please log in to continue.</p>
         </div>
         {/* dev (jay): Link styled as button — avoids client-side JS for a simple nav action */}
         <Link

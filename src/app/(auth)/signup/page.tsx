@@ -1,13 +1,13 @@
 import Image from "next/image";
 const logo = "/assets/logo.png";
-import ForgotPasswordForm from "@/components/auth/ForgotPasswordForm";
+import SignUpForm from "@/components/auth/SignUpForm";
 
 export const metadata = {
-  title: "Forgot Password — The Fun Depot",
+  title: "Sign Up — The Fun Depot",
 };
 
-// dev (jay): page shell for reset flow step 1 — same layout as login/signup for visual continuity
-export default function ForgotPasswordPage() {
+// dev (jay): same two-column shell as login page — keeps layout consistent across auth routes
+export default function SignUpPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">
       {/* Left panel */}
@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
           priority
         />
         <p className="text-white text-lg font-semibold tracking-wide">
-          All Admin Access
+          All Dashboard Access
         </p>
       </div>
 
@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
         {/* Form area */}
         <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-white">
           <div className="w-full">
-            <ForgotPasswordForm />
+            <SignUpForm />
           </div>
         </div>
       </div>
