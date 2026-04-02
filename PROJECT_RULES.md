@@ -23,6 +23,15 @@ Project requirements document you can refer and understand : https://docs.google
 Scope 1 — Operations Platform -- we will focus on this module right now : https://docs.google.com/document/d/1cZNmDEcIt1Ajke7-PN5B794h7_SC84oBg_QoCeEmkl8/edit?usp=drive_link
 ---
 
+## 1.1 Make sure to use utils and services
+- Ensure all reusable or common logic is abstracted into shared functions, components, or services. Avoid hardcoding or duplicating logic across the codebase. Examples include utilities like getToken, getCurrentUser, and centralized API services (e.g., Axios-based ApiService). Follow the defined project structure and standard full-stack best practices.
+
+- Before creating any new function, service, hook, or authentication logic, first check if an existing implementation already exists and reuse it. If it does not exist, create it in the appropriate module. If the logic has potential for reuse, place it in a shared or reusable location to ensure consistency and maintainability across the project.
+
+- If you add something in project which demands the .env variable so put that on .env.examples so we can know which one we have to add.
+
+
+
 ## 2. The Golden Rules (Non-Negotiable)
 
 These rules override everything else. Every developer and AI agent must follow these without exception.
@@ -54,6 +63,26 @@ const bookings = await prisma.booking.findMany({
 - **Booking ID (format: `BK-XXXXX`)** is the primary foreign key across the entire system.
 - Every table that relates to a job — reservations, invoices, warehouse tasks, run assignments — MUST carry a `bookingId`.
 - Nothing moves to execution without a valid Booking ID.
+
+### 2.2.1 Make sure after change or add or modify the things just add like 
+```
+// Author — always use from gitconfig scoped
+// Impact: -- it should be short
+// Reason: -- it should be short
+const bookings = await prisma.booking.findMany({
+  where: { orgId: session.orgId, status: 'CONFIRMED' }
+});
+or suppose in modifications if you modified another dev code so just replace
+
+// Old Author — always use from gitconfig scoped
+// New Author — always use from gitconfig scoped
+// Impact: -- it should be replace with old one
+// Reason: -- it should be replace with old one
+const bookings = await prisma.booking.findMany({
+  where: { orgId: session.orgId, status: 'CONFIRMED' }
+});
+```
+
 
 ### 2.3 AI Assists, Never Auto-Executes
 

@@ -5,7 +5,7 @@
  *
  * TODO: Install @anthropic-ai/sdk and implement when AI features are built.
  *
- * @author AI-assisted
+ * @author samir
  * @created 2026-04-02
  * @module Shared - AI
  */

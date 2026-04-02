@@ -2,11 +2,22 @@ import { db } from "@/server/db/client";
 import { success, error } from "@/server/core/response";
 import { logger } from "@/server/lib/logger";
 
+// Old Author: jay
+// New Author: samir
+// Impact: updated error() call to match new signature (code, message, status)
+// Reason: align with PROJECT_RULES.md §4.5 standard error response format
+
 /**
  * GET /api/health
  *
  * Checks whether the app and database are reachable.
  * Consumed by load balancers, uptime monitors, and post-deploy smoke tests.
+ *
+ * @returns Health status with DB connectivity and latency
+ *
+ * @author jay
+ * @created 2026-04-01
+ * @module Shared - Health Check
  */
 export async function GET(): Promise<Response> {
   let dbStatus: "ok" | "error" = "error";
@@ -26,7 +37,7 @@ export async function GET(): Promise<Response> {
 
   if (!healthy) {
     // 503 signals to load balancers that this instance should be taken out of rotation.
-    return error("Database unreachable", 503, "DB_UNREACHABLE");
+    return error("DB_UNREACHABLE", "Database unreachable", 503);
   }
 
   return success({

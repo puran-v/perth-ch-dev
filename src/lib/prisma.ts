@@ -3,7 +3,7 @@
  * This file exists to match the PROJECT_RULES.md structure convention
  * (lib/prisma.ts) while the actual implementation lives in server/db/client.ts.
  *
- * @author AI-assisted
+ * @author samir
  * @created 2026-04-02
  * @module Shared
  */

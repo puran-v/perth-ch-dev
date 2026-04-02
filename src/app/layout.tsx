@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 // dev (jay): Geist loaded via next/font — zero layout shift, self-hosted automatically
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +37,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
       {/* dev (jay): flex flex-col so full-height page layouts work without extra wrappers */}
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }
