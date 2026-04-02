@@ -1,41 +1,57 @@
-import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/server/db/client";
+import { success, error } from "@/server/core/response";
 import { loginSchema } from "@/server/lib/validation/auth";
 import { loginLimiter } from "@/server/lib/rate-limit";
 import { createSession, sessionCookieHeader } from "@/server/lib/auth/session";
 import { logger } from "@/server/lib/logger";
 
+// Old Author: puran
+// New Author: samir
+// Impact: replaced raw NextResponse.json with success()/error() helpers for consistent API responses
+// Reason: align with PROJECT_RULES.md §4.5 standard response format used by other auth routes
+
 const ROUTE = "/api/auth/login";
 
-export async function POST(req: Request) {
+/**
+ * POST /api/auth/login
+ *
+ * Authenticates a user with email and password, creates a database-backed
+ * session, and returns the user profile with a session cookie.
+ *
+ * Flow: Validate input -> Rate limit (IP + email) -> Verify credentials -> Create session
+ *
+ * @param req - The incoming request with { email, password }
+ * @returns User data with session cookie (200) or error response
+ *
+ * @author samir
+ * @created 2026-04-02
+ * @module Auth - Login
+ */
+export async function POST(req: Request): Promise<Response> {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
   const ctx = { route: ROUTE, requestId };
 
   try {
+    // Step 1: Validate input with Zod
     const body = await req.json();
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Invalid input",
-            details: parsed.error.issues.map((i) => ({
-              field: i.path.join("."),
-              message: i.message,
-            })),
-          },
-        },
-        { status: 400 }
+      return error(
+        "VALIDATION_ERROR",
+        "Invalid input",
+        400,
+        parsed.error.issues.map((i) => ({
+          field: i.path.join("."),
+          message: i.message,
+        }))
       );
     }
 
     const { email, password } = parsed.data;
 
-    // Rate limit on both IP and email
+    // Step 2: Rate limit on both IP and email to slow brute force
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const [ipResult, emailResult] = await Promise.all([
       loginLimiter.limit(ip),
@@ -44,102 +60,63 @@ export async function POST(req: Request) {
 
     if (!ipResult.success || !emailResult.success) {
       logger.warn("Login rate limited", { ...ctx, ip });
-      const reset = Math.max(ipResult.reset, emailResult.reset);
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "RATE_LIMITED",
-            message: "Too many login attempts. Please try again later.",
-          },
-        },
-        {
-          status: 429,
-          headers: { "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)) },
-        }
+      return error(
+        "RATE_LIMITED",
+        "Too many login attempts. Please try again later.",
+        429
       );
     }
 
-    // Load user — generic failure for "bad credentials"
+    // Step 3: Load user — generic failure message for "bad credentials"
     const user = await db.user.findUnique({ where: { email } });
 
     if (!user) {
       logger.warn("Login failed: unknown email", { ...ctx });
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INVALID_CREDENTIALS",
-            message: "Invalid email or password",
-          },
-        },
-        { status: 401 }
-      );
+      return error("INVALID_CREDENTIALS", "Invalid email or password", 401);
     }
 
+    // Step 4: Verify password
     const passwordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordValid) {
       logger.warn("Login failed: wrong password", { ...ctx, userId: user.id });
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INVALID_CREDENTIALS",
-            message: "Invalid email or password",
-          },
-        },
-        { status: 401 }
-      );
+      return error("INVALID_CREDENTIALS", "Invalid email or password", 401);
     }
 
+    // Step 5: Check email verification status
     if (!user.isVerified) {
       logger.warn("Login failed: email not verified", { ...ctx, userId: user.id });
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "EMAIL_NOT_VERIFIED",
-            message: "Please verify your email before logging in",
-          },
-        },
-        { status: 403 }
+      return error(
+        "EMAIL_NOT_VERIFIED",
+        "Please verify your email before logging in",
+        403
       );
     }
 
-    // Create session + set cookie
+    // Step 6: Create session + build cookie header
     const { token, expiresAt } = await createSession(user.id);
 
     logger.info("Login successful", { ...ctx, userId: user.id });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-        },
+    const responseBody = {
+      success: true as const,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
       },
-      {
-        status: 200,
-        headers: {
-          "Set-Cookie": sessionCookieHeader(token, expiresAt),
-        },
-      }
-    );
-  } catch (error) {
-    logger.error("Login failed", ctx, error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Failed to log in",
-        },
+    };
+
+    return new Response(JSON.stringify(responseBody), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": sessionCookieHeader(token, expiresAt),
       },
-      { status: 500 }
-    );
+    });
+  } catch (err) {
+    logger.error("Login failed", ctx, err);
+    return error("INTERNAL_ERROR", "Failed to log in", 500);
   }
 }
