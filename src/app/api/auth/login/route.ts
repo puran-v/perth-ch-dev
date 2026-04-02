@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/server/db/client";
-import { success, error } from "@/server/core/response";
+import { error } from "@/server/core/response";
 import { loginSchema } from "@/server/lib/validation/auth";
 import { loginLimiter } from "@/server/lib/rate-limit";
 import { createSession, sessionCookieHeader } from "@/server/lib/auth/session";
@@ -78,7 +78,16 @@ export async function POST(req: Request): Promise<Response> {
       return error("INVALID_CREDENTIALS", "The email or password you entered is incorrect.", 401);
     }
 
-    // Step 4: Verify password
+    // Step 4: Verify password — OAuth-only users have null passwordHash
+    if (!user.passwordHash) {
+      logger.warn("Login failed: OAuth-only account", { ...ctx, userId: user.id });
+      return error(
+        "OAUTH_ONLY_ACCOUNT",
+        "This account uses social login. Please sign in with Google or Microsoft.",
+        401
+      );
+    }
+
     const passwordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordValid) {

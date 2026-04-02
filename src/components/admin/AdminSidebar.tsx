@@ -52,6 +52,7 @@ interface UserInfo {
   name: string;
   role: string;
   avatarInitials: string;
+  onLogout?: () => void;
 }
 
 interface AdminSidebarProps {
@@ -180,18 +181,34 @@ function ComingSoonCard({ module }: { module: ComingSoonModule }) {
   );
 }
 
+// Old Author: jay
+// New Author: Puran
+// Impact: added logout button to user profile section
+// Reason: users need to log out from sidebar; clears session cookie and redirects to login
 function UserProfile({ user }: { user: UserInfo }) {
   return (
     <div className="flex items-center gap-3 px-6 py-5 border-t border-white/10">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[#042E93]">
         {user.avatarInitials}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-white truncate">
           {user.name}
         </p>
         <p className="text-xs text-white/50 truncate">{user.role}</p>
       </div>
+      {user.onLogout && (
+        <button
+          onClick={user.onLogout}
+          className="shrink-0 p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          aria-label="Log out"
+          title="Log out"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
