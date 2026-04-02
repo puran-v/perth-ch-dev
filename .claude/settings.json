@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/mac/Desktop/samir\\\\ shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/app/**)",
+      "Bash(mkdir -p \"/Users/mac/Desktop/samir shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/lib/constants\")",
+      "Bash(mkdir -p \"/Users/mac/Desktop/samir shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/components/admin\")",
+      "Read(//Users/mac/Desktop/**)"
+    ]
+  }
+}
