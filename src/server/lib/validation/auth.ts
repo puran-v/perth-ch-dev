@@ -63,6 +63,20 @@ export const resendVerificationSchema = z.object({
     .max(254, "Email must be 254 characters or less"),
 });
 
+export const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Invalid email format")
+    .max(254, "Email must be 254 characters or less"),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .max(128, "Password must be 128 characters or less"),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
