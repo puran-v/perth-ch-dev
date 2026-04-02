@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { db } from "@/server/db/client";
 import { success, error } from "@/server/core/response";
 import { issueOtp } from "@/server/lib/email/issueOtp";
