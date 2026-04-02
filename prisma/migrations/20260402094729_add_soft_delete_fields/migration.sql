@@ -1,19 +1,21 @@
-/*
-  Warnings:
-
-  - Added the required column `updatedAt` to the `email_verification_otps` table without a default value. This is not possible if the table is not empty.
-
-*/
--- AlterTable
+-- AlterTable: email_verification_otps — add updatedAt with default for existing rows, deletedAt, orgId
 ALTER TABLE "email_verification_otps" ADD COLUMN     "deletedAt" TIMESTAMP(3),
 ADD COLUMN     "orgId" TEXT,
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
--- AlterTable
+-- AlterTable: password_reset_tokens — add updatedAt with default for existing rows, deletedAt
+ALTER TABLE "password_reset_tokens" ADD COLUMN     "deletedAt" TIMESTAMP(3),
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AlterTable: sessions — add updatedAt with default for existing rows, deletedAt
+ALTER TABLE "sessions" ADD COLUMN     "deletedAt" TIMESTAMP(3),
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AlterTable: users — add deletedAt, orgId
 ALTER TABLE "users" ADD COLUMN     "deletedAt" TIMESTAMP(3),
 ADD COLUMN     "orgId" TEXT;
 
--- CreateTable
+-- CreateTable: organizations
 CREATE TABLE "organizations" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,

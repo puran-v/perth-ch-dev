@@ -9,6 +9,15 @@ export const metadata = {
 // Author: Puran
 // Impact: new page for password reset step 2
 // Reason: complete forgot-password flow — user lands here from email link
+
+/**
+ * Reset password page — step 2 of forgot-password flow.
+ * Uses the same two-column auth layout as login/signup for visual continuity.
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Password Reset
+ */
 export default function ResetPasswordPage() {
   return (
     <main className=" min-h-screen py-5 flex flex-col md:flex-row">

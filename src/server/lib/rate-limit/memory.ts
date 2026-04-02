@@ -1,6 +1,19 @@
+// Author: Puran
+// Impact: in-memory rate limiter fallback for local dev without Redis
+// Reason: allows `npm run dev` without Upstash; not for production use
+
 /**
- * In-process sliding-window limiter for local dev when Upstash is not configured.
- * Not suitable for multi-instance production (use Redis-backed Ratelimit instead).
+ * Creates an in-process sliding-window rate limiter for local dev
+ * when Upstash Redis is not configured. Each identifier (IP, email)
+ * gets its own timestamp bucket. Not suitable for multi-instance production.
+ *
+ * @param max - Maximum requests allowed within the window
+ * @param windowMs - Window duration in milliseconds
+ * @returns Limiter object with `.limit(identifier)` matching Upstash interface
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Shared - Rate Limiting
  */
 export function createMemorySlidingWindow(max: number, windowMs: number) {
   const buckets = new Map<string, number[]>();
@@ -37,7 +50,17 @@ export function createMemorySlidingWindow(max: number, windowMs: number) {
   };
 }
 
-/** At most one successful check per `intervalMs` per identifier (fixed cooldown). */
+/**
+ * Creates a fixed-cooldown limiter allowing at most one request per interval
+ * per identifier. Used for resend-OTP cooldown (1 per 60s).
+ *
+ * @param intervalMs - Cooldown duration in milliseconds
+ * @returns Limiter object with `.limit(identifier)` matching Upstash interface
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Shared - Rate Limiting
+ */
 export function createMemoryCooldown(intervalMs: number) {
   const nextAllowedAt = new Map<string, number>();
 

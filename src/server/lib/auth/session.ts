@@ -1,3 +1,18 @@
+/**
+ * DB-backed session management with httpOnly cookie.
+ *
+ * Sessions are stored in the `sessions` table. Invalidation uses soft delete
+ * (setting deletedAt) per PROJECT_RULES.md §5.3 — never hard delete.
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
+ */
+
+// Author: Puran
+// Impact: session CRUD helpers + cookie builders for auth flow
+// Reason: DB-backed sessions with httpOnly cookie for login/logout
+
 import crypto from "crypto";
 import { db } from "@/server/db/client";
 
@@ -5,7 +20,14 @@ const SESSION_COOKIE_NAME = "session_token";
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * Create a new session row and return the token + cookie header value.
+ * Creates a new session row in the database and returns the token + expiry.
+ *
+ * @param userId - The authenticated user's ID
+ * @returns Object containing the raw session token and expiry date
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export async function createSession(userId: string) {
   const token = crypto.randomUUID();
@@ -19,11 +41,20 @@ export async function createSession(userId: string) {
 }
 
 /**
- * Validate a session token. Returns the session + user if valid, null otherwise.
+ * Validates a session token against the database.
+ * Returns the session with user data if valid, null if expired or not found.
+ * Expired sessions are soft-deleted (deletedAt set) per §5.3.
+ *
+ * @param token - The session token from the cookie
+ * @returns Session with user data, or null if invalid/expired
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export async function validateSession(token: string) {
   const session = await db.session.findUnique({
-    where: { token },
+    where: { token, deletedAt: null },
     include: {
       user: {
         select: { id: true, fullName: true, email: true, role: true, isVerified: true },
@@ -33,8 +64,11 @@ export async function validateSession(token: string) {
 
   if (!session || session.expiresAt < new Date()) {
     if (session) {
-      // Clean up expired session
-      await db.session.delete({ where: { id: session.id } }).catch(() => {});
+      // Soft delete expired session (§5.3 — never hard delete)
+      await db.session.update({
+        where: { id: session.id },
+        data: { deletedAt: new Date() },
+      }).catch(() => {});
     }
     return null;
   }
@@ -43,14 +77,50 @@ export async function validateSession(token: string) {
 }
 
 /**
- * Delete a session by token.
+ * Soft-deletes a session by token. Sets deletedAt timestamp
+ * rather than removing the row (§5.3 — never hard delete).
+ *
+ * @param token - The session token to invalidate
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export async function deleteSession(token: string) {
-  await db.session.deleteMany({ where: { token } });
+  await db.session.updateMany({
+    where: { token, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
 }
 
 /**
- * Build the Set-Cookie header value for the session.
+ * Soft-deletes all active sessions for a user. Used on password reset
+ * to invalidate all existing logins.
+ *
+ * @param userId - The user whose sessions should be invalidated
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
+ */
+export async function invalidateAllSessions(userId: string) {
+  await db.session.updateMany({
+    where: { userId, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+}
+
+/**
+ * Builds the Set-Cookie header value for the session.
+ * Includes Secure flag only in production.
+ *
+ * @param token - The session token value
+ * @param expiresAt - The session expiry date
+ * @returns Formatted Set-Cookie header string
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export function sessionCookieHeader(token: string, expiresAt: Date): string {
   const isProduction = process.env.NODE_ENV === "production";
@@ -66,8 +136,14 @@ export function sessionCookieHeader(token: string, expiresAt: Date): string {
 }
 
 /**
- * Build a Set-Cookie header that clears the session cookie.
+ * Builds a Set-Cookie header that clears the session cookie.
  * Mirrors the same flags as sessionCookieHeader so browsers reliably remove it.
+ *
+ * @returns Formatted Set-Cookie header string with Max-Age=0
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export function clearSessionCookieHeader(): string {
   const isProduction = process.env.NODE_ENV === "production";
@@ -83,7 +159,14 @@ export function clearSessionCookieHeader(): string {
 }
 
 /**
- * Extract session token from the Cookie header.
+ * Extracts the session token from the Cookie header string.
+ *
+ * @param req - The incoming request object
+ * @returns The session token string, or null if not present
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - Session Management
  */
 export function getSessionToken(req: Request): string | null {
   const cookie = req.headers.get("cookie");
