@@ -80,3 +80,27 @@ export const loginLimiter = redis
       analytics: false,
     })
   : createMemorySlidingWindow(10, FIFTEEN_MIN_MS);
+
+/**
+ * Forgot password: 3 requests per 15 minutes per key (IP or email)
+ */
+export const forgotPasswordLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "15 m"),
+      prefix: "rl:forgot-password",
+      analytics: false,
+    })
+  : createMemorySlidingWindow(3, FIFTEEN_MIN_MS);
+
+/**
+ * Reset password: 5 requests per 15 minutes per IP
+ */
+export const resetPasswordLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, "15 m"),
+      prefix: "rl:reset-password",
+      analytics: false,
+    })
+  : createMemorySlidingWindow(5, FIFTEEN_MIN_MS);

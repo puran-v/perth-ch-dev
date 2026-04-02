@@ -47,6 +47,7 @@ model User {
   org                   Organization?          @relation(fields: [orgId], references: [id])
   emailVerificationOtps EmailVerificationOtp[]
   sessions              Session[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@index([orgId])
   @@map("users")
@@ -84,4 +85,19 @@ model EmailVerificationOtp {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_otps")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
