@@ -9,16 +9,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
 import { toast } from "react-toastify";
-import { signIn } from "next-auth/react";
-
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's toast with OAuth Google button + real signup API call
-// Reason: combined email/password signup (with toast feedback) + social login (Google)
+// Reason: combined email/password signup (with toast feedback) + social login (Google/Microsoft)
 
 /**
  * Sign-up form with email/password and social login (Google).
- * Calls POST /api/auth/signup for password registration, signIn() for OAuth.
+ * Calls POST /api/auth/signup for password registration, form POST for OAuth.
  * Uses toast for success/error feedback.
  * On success redirects to verify-email page.
  *
@@ -155,9 +153,36 @@ export default function SignUpForm() {
    * @created 2026-04-02
    * @module Auth - Signup
    */
-  const handleOAuth = (provider: string) => {
+  const handleOAuth = async (provider: string) => {
     setOauthLoading(provider);
-    signIn(provider, { callbackUrl: "/api/auth/oauth/establish" });
+    try {
+      // Fetch CSRF token from Auth.js
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+
+      // Submit a hidden form so the browser follows the 302 redirect natively
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `/api/auth/signin/${provider}`;
+
+      const csrfInput = document.createElement("input");
+      csrfInput.type = "hidden";
+      csrfInput.name = "csrfToken";
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+
+      const callbackInput = document.createElement("input");
+      callbackInput.type = "hidden";
+      callbackInput.name = "callbackUrl";
+      callbackInput.value = "/api/auth/oauth/establish";
+      form.appendChild(callbackInput);
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      setOauthLoading(null);
+      setErrors({ general: "Failed to start social login. Please try again." });
+    }
   };
 
   return (
@@ -195,7 +220,6 @@ export default function SignUpForm() {
             {oauthLoading === "google" ? "Connecting..." : "Continue with Google"}
           </button>
 
-          {/* TODO: uncomment when Microsoft Entra ID is configured
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
@@ -210,7 +234,6 @@ export default function SignUpForm() {
             </svg>
             {oauthLoading === "microsoft-entra-id" ? "Connecting..." : "Continue with Microsoft"}
           </button>
-          */}
         </div>
 
         {/* Divider */}

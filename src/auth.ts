@@ -42,6 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   secret: process.env.AUTH_SECRET,
 
+
   pages: {
     signIn: "/login",
     error: "/login",
@@ -58,18 +59,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      * @module Auth - OAuth
      */
     async signIn({ user, account, profile }) {
-      if (!account || !user.email) return false;
+      if (!account || !user.email) return "/login?error=OAuthFailed";
 
       const email = user.email.toLowerCase().trim();
 
       // Require verified email from provider
-      const emailVerified = Boolean(profile?.email_verified);
+      // Google sends email_verified explicitly; Microsoft Entra ID emails
+      // are implicitly verified (they come from the tenant directory)
+      const isMicrosoft = account.provider === "microsoft-entra-id";
+      const emailVerified = isMicrosoft || Boolean(profile?.email_verified);
       if (!emailVerified) {
         logger.warn("OAuth sign-in rejected: email not verified by provider", {
           route: "/api/auth/callback",
           provider: account.provider,
         });
-        return false;
+        return "/login?error=EmailNotVerified";
       }
 
       // Find existing user or auto-create one

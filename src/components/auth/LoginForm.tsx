@@ -10,16 +10,14 @@ import { useSearchParams } from "next/navigation";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 import { useAuth } from "@/hooks";
 import { toast } from "react-toastify";
-import { signIn } from "next-auth/react";
-
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's useAuth/toast with OAuth Google button + error handling from URL params
-// Reason: combined email/password login (with session storage) + social login (Google)
+// Reason: combined email/password login (with session storage) + social login (Google/Microsoft)
 
 /**
  * Login form with email/password and social login (Google).
- * Calls POST /api/auth/login for password auth, signIn() for OAuth.
+ * Calls POST /api/auth/login for password auth, form POST for OAuth.
  * Uses useAuth hook to store user in client state + toast for feedback.
  *
  * @author Puran
@@ -51,7 +49,9 @@ export default function LoginForm() {
           ? "Social login failed. Please try again."
           : urlError === "TooManyAttempts"
             ? "Too many attempts. Please try again later."
-            : null;
+            : urlError === "EmailNotVerified"
+              ? "Your email is not verified by the provider. Please use a verified account."
+              : null;
 
   /**
    * Client-side validation before hitting the API.
@@ -125,7 +125,7 @@ export default function LoginForm() {
             setErrors({ general: "The email or password you entered is incorrect." });
             break;
           case "OAUTH_ONLY_ACCOUNT":
-            setErrors({ general: "This account uses social login. Please sign in with Google." });
+            setErrors({ general: "This account uses social login. Please sign in with Google or Microsoft." });
             break;
           case "EMAIL_NOT_VERIFIED":
             setErrors({
@@ -165,8 +165,9 @@ export default function LoginForm() {
   };
 
   /**
-   * Initiates OAuth sign-in with the specified provider.
-   * Redirects to the OAuth provider, then to our bridge endpoint.
+   * Initiates OAuth sign-in by submitting a hidden form to Auth.js.
+   * Uses form POST (not fetch) so the browser follows the 302 redirect
+   * to the OAuth provider natively. Works reliably in Next.js 16.
    *
    * @param provider - The OAuth provider ID ("google" or "microsoft-entra-id")
    *
@@ -174,9 +175,36 @@ export default function LoginForm() {
    * @created 2026-04-02
    * @module Auth - Login
    */
-  const handleOAuth = (provider: string) => {
+  const handleOAuth = async (provider: string) => {
     setOauthLoading(provider);
-    signIn(provider, { callbackUrl: "/api/auth/oauth/establish" });
+    try {
+      // Fetch CSRF token from Auth.js
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+
+      // Submit a hidden form so the browser follows the 302 redirect natively
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `/api/auth/signin/${provider}`;
+
+      const csrfInput = document.createElement("input");
+      csrfInput.type = "hidden";
+      csrfInput.name = "csrfToken";
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+
+      const callbackInput = document.createElement("input");
+      callbackInput.type = "hidden";
+      callbackInput.name = "callbackUrl";
+      callbackInput.value = "/api/auth/oauth/establish";
+      form.appendChild(callbackInput);
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      setOauthLoading(null);
+      setErrors({ general: "Failed to start social login. Please try again." });
+    }
   };
 
   return (
@@ -221,7 +249,6 @@ export default function LoginForm() {
             {oauthLoading === "google" ? "Connecting..." : "Continue with Google"}
           </button>
 
-          {/* TODO: uncomment when Microsoft Entra ID is configured
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
@@ -236,7 +263,6 @@ export default function LoginForm() {
             </svg>
             {oauthLoading === "microsoft-entra-id" ? "Connecting..." : "Continue with Microsoft"}
           </button>
-          */}
         </div>
 
         {/* Divider */}
