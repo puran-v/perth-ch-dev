@@ -6,6 +6,7 @@ import Input from "@/components/ui/Input";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EmailIcon } from "@/components/ui/Icons";
+import { toast } from "react-toastify";
 
 // Old Author: jay
 // New Author: samir
@@ -93,9 +94,11 @@ export default function VerifyEmailForm() {
         return;
       }
 
-      // Success — redirect to login
+      // Success — toast + redirect to login
+      toast.success("Email verified successfully! You can now log in.");
       router.push("/login");
     } catch {
+      toast.error("Unable to connect. Please check your internet and try again.");
       setError("Unable to connect. Please check your internet and try again.");
     } finally {
       setLoading(false);
@@ -135,8 +138,10 @@ export default function VerifyEmailForm() {
         return;
       }
 
+      toast.success("A new code has been sent to your email.");
       setSuccessMsg("A new code has been sent to your email.");
     } catch {
+      toast.error("Unable to connect. Please try again.");
       setError("Unable to connect. Please try again.");
     } finally {
       setResending(false);

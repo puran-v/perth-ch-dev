@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Link from "next/link";
 import { EmailIcon } from "@/components/ui/Icons";
+import { toast } from "react-toastify";
 
 // Old Author: jay
 // New Author: Puran
@@ -65,7 +66,7 @@ export default function ForgotPasswordForm() {
         return;
       }
     } catch {
-      // Silently continue — neutral response prevents email enumeration
+      toast.error("Unable to connect. Please check your internet and try again.");
     }
 
     setLoading(false);

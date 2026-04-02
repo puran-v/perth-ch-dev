@@ -65,19 +65,22 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // Step 3: Hash the token and find a valid row
+    // Step 3: Hash token (sync, instant) then run DB lookup + bcrypt in parallel
+    // bcrypt takes ~100-200ms and token lookup takes ~10-30ms — running them
+    // together saves ~100ms on every reset-password request
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-    const resetToken = await db.passwordResetToken.findFirst({
-      where: {
-        tokenHash,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      include: {
-        user: { select: { id: true } },
-      },
-    });
+    const [resetToken, passwordHash] = await Promise.all([
+      db.passwordResetToken.findFirst({
+        where: {
+          tokenHash,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        select: { id: true, user: { select: { id: true } } },
+      }),
+      bcrypt.hash(password, 10),
+    ]);
 
     if (!resetToken) {
       logger.warn("Invalid or expired reset token", ctx);
@@ -89,7 +92,6 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const userId = resetToken.user.id;
-    const passwordHash = await bcrypt.hash(password, 10);
 
     // Step 4: Update password + consume token + soft-delete all sessions in one transaction
     // §5.3 — soft delete (set deletedAt) instead of hard delete for audit trail

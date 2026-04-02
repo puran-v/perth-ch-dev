@@ -6,6 +6,7 @@ import { PasswordInput } from "@/components/ui/Input";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LockIcon } from "@/components/ui/Icons";
+import { toast } from "react-toastify";
 
 // Author: Puran
 // Impact: new component for password reset step 2
@@ -122,8 +123,10 @@ export default function ResetPasswordForm() {
         return;
       }
 
+      toast.success("Password reset successfully!");
       setSuccess(true);
     } catch {
+      toast.error("Unable to connect. Please check your internet and try again.");
       setErrors({ general: "Unable to connect. Please check your internet and try again." });
     } finally {
       setLoading(false);

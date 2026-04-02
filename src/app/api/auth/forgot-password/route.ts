@@ -84,27 +84,30 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // Step 3: Find user — neutral response if unknown or unverified (no leak)
-    const user = await db.user.findUnique({ where: { email } });
+    // Step 3: Find user — only select id and isVerified (no leak)
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, isVerified: true },
+    });
 
     if (!user || !user.isVerified) {
       return neutralSuccess();
     }
 
-    // Step 4: Invalidate any open reset tokens for this user
-    await db.passwordResetToken.updateMany({
-      where: { userId: user.id, consumedAt: null },
-      data: { consumedAt: new Date() },
-    });
-
-    // Step 5: Generate token, hash before storing
+    // Step 4 + 5: Generate token and invalidate old tokens + create new one in a single transaction
     const rawToken = crypto.randomUUID();
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS);
 
-    await db.passwordResetToken.create({
-      data: { userId: user.id, tokenHash, expiresAt },
-    });
+    await db.$transaction([
+      db.passwordResetToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      }),
+      db.passwordResetToken.create({
+        data: { userId: user.id, tokenHash, expiresAt },
+      }),
+    ]);
 
     // Step 6: Build reset URL — FRONTEND_URL must be set in production
     const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL;
@@ -114,7 +117,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    // Step 7: Send reset email
+    // Step 7: Send reset email — awaited so we can roll back the token on failure
     try {
       await sendPasswordResetEmail(user.email, resetUrl);
       logger.info("Password reset email sent", { ...ctx, userId: user.id });

@@ -137,6 +137,7 @@ export default function LoginForm() {
         role: data.data.role,
       });
     } catch {
+      toast.error("Unable to connect. Please check your internet and try again.");
       setErrors({
         general: "Unable to connect. Please check your internet and try again.",
       });

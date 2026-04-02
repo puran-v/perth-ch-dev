@@ -8,6 +8,7 @@ import Checkbox from "@/components/ui/Checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
+import { toast } from "react-toastify";
 
 // Old Author: jay
 // New Author: samir
@@ -132,9 +133,11 @@ export default function SignUpForm() {
         return;
       }
 
-      // Success — redirect to verify-email with email so the page can display it
+      // Success — toast + redirect to verify-email with email so the page can display it
+      toast.success("Account created! Please check your email for the verification code.");
       router.push(`/verify-email?email=${encodeURIComponent(email)}&mode=signup`);
     } catch {
+      toast.error("Unable to connect. Please check your internet and try again.");
       setErrors({
         general: "Unable to connect. Please check your internet and try again.",
       });

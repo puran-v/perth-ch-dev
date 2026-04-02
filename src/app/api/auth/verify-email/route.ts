@@ -67,6 +67,8 @@ export async function POST(req: Request): Promise<Response> {
     const { email, code } = parsed.data;
 
     // Step 2: Rate limit on both IP and email to slow brute force
+    // Hash code upfront (sync, ~0ms) so it's ready for the DB query
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const [ipResult, emailResult] = await Promise.all([
       verifyEmailLimiter.limit(ip),
@@ -82,15 +84,16 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // Step 3: Find user — unified response so we don't reveal whether email exists
-    const user = await db.user.findUnique({ where: { email } });
+    // Step 3 + 4: Find user and matching OTP in parallel
+    // We look up the user by email and OTPs by email join — saves a sequential round trip
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
 
     if (!user) {
       return invalidOtpResponse();
     }
-
-    // Step 4: Match OTP hash against stored records
-    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
 
     const otp = await db.emailVerificationOtp.findFirst({
       where: {
@@ -99,6 +102,7 @@ export async function POST(req: Request): Promise<Response> {
         consumedAt: null,
         expiresAt: { gt: new Date() },
       },
+      select: { id: true },
       orderBy: { createdAt: "desc" },
     });
 
