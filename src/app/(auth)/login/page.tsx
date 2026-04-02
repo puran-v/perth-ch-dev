@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Suspense } from "react";
 const logo = "/assets/logo.png";
 import LoginForm from "@/components/auth/LoginForm";
 
@@ -43,7 +44,10 @@ export default function LoginPage() {
         <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-white">
           {/* dev (jay): w-full lets LoginForm control its own max-width */}
           <div className="w-full">
-            <LoginForm />
+            {/* Suspense required — LoginForm uses useSearchParams for OAuth error params */}
+            <Suspense>
+              <LoginForm />
+            </Suspense>
           </div>
         </div>
       </div>
