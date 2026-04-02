@@ -1,6 +1,6 @@
 import { db } from "@/server/db/client";
 import { success, error } from "@/server/core/response";
-import { logger } from "@/server/core/logger";
+import { logger } from "@/server/lib/logger";
 
 /**
  * GET /api/health
@@ -19,7 +19,7 @@ export async function GET(): Promise<Response> {
     dbLatencyMs = Date.now() - start;
     dbStatus = "ok";
   } catch (err) {
-    logger.error("Health check DB ping failed", err);
+    logger.error("Health check DB ping failed", { route: "/api/health" }, err);
   }
 
   const healthy = dbStatus === "ok";
