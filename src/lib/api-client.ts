@@ -18,11 +18,10 @@
  * @module Shared - API Client
  */
 
-// Author: samir
-// Impact: new centralised API service for all frontend HTTP calls
-// Reason: PROJECT_RULES.md §1.1 requires shared services, §9.1 requires no raw fetch
-
-import { getToken } from "@/lib/auth-client";
+// Old Author: samir
+// New Author: samir
+// Impact: removed Bearer token injection, rely on HttpOnly session cookie for auth
+// Reason: login API sets HttpOnly session_token cookie, no JWT in localStorage
 
 /** Standard success response from all API endpoints */
 interface ApiSuccessResponse<T> {
@@ -59,34 +58,22 @@ export class ApiError extends Error {
 }
 
 /** Request options for the API client */
-interface RequestOptions extends Omit<RequestInit, "body"> {
-  /** Skip automatic auth header injection */
-  skipAuth?: boolean;
-}
+interface RequestOptions extends Omit<RequestInit, "body"> {}
 
 /**
- * Builds request headers including auth token and content type.
+ * Builds request headers with content type.
+ * Auth is handled via HttpOnly session_token cookie (sent automatically).
  *
- * @param skipAuth - If true, omit the Authorization header
  * @returns Headers object ready for fetch
  *
  * @author samir
  * @created 2026-04-02
  * @module Shared - API Client
  */
-function buildHeaders(skipAuth = false): HeadersInit {
-  const headers: Record<string, string> = {
+function buildHeaders(): HeadersInit {
+  return {
     "Content-Type": "application/json",
   };
-
-  if (!skipAuth) {
-    const token = getToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  }
-
-  return headers;
 }
 
 /**
@@ -150,11 +137,10 @@ export const apiClient = {
    * @module Shared - API Client
    */
   async get<T>(url: string, options: RequestOptions = {}): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options;
     const response = await fetch(url, {
       method: "GET",
-      headers: buildHeaders(skipAuth),
-      ...fetchOptions,
+      headers: buildHeaders(),
+      ...options,
     });
     return parseResponse<T>(response);
   },
@@ -172,12 +158,11 @@ export const apiClient = {
    * @module Shared - API Client
    */
   async post<T>(url: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options;
     const response = await fetch(url, {
       method: "POST",
-      headers: buildHeaders(skipAuth),
+      headers: buildHeaders(),
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      ...fetchOptions,
+      ...options,
     });
     return parseResponse<T>(response);
   },
@@ -195,12 +180,11 @@ export const apiClient = {
    * @module Shared - API Client
    */
   async patch<T>(url: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options;
     const response = await fetch(url, {
       method: "PATCH",
-      headers: buildHeaders(skipAuth),
+      headers: buildHeaders(),
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      ...fetchOptions,
+      ...options,
     });
     return parseResponse<T>(response);
   },
@@ -218,12 +202,11 @@ export const apiClient = {
    * @module Shared - API Client
    */
   async put<T>(url: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options;
     const response = await fetch(url, {
       method: "PUT",
-      headers: buildHeaders(skipAuth),
+      headers: buildHeaders(),
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      ...fetchOptions,
+      ...options,
     });
     return parseResponse<T>(response);
   },
@@ -240,11 +223,10 @@ export const apiClient = {
    * @module Shared - API Client
    */
   async del<T>(url: string, options: RequestOptions = {}): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options;
     const response = await fetch(url, {
       method: "DELETE",
-      headers: buildHeaders(skipAuth),
-      ...fetchOptions,
+      headers: buildHeaders(),
+      ...options,
     });
     return parseResponse<T>(response);
   },
