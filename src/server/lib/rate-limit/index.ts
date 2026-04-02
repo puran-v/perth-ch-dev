@@ -68,3 +68,15 @@ export const resendHourlyLimiter = redis
       analytics: false,
     })
   : createMemorySlidingWindow(5, HOUR_MS);
+
+/**
+ * Login: 10 requests per 15 minutes per key (IP or email)
+ */
+export const loginLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "15 m"),
+      prefix: "rl:login",
+      analytics: false,
+    })
+  : createMemorySlidingWindow(10, FIFTEEN_MIN_MS);
