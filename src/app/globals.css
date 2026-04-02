@@ -11,13 +11,61 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-inter: var(--font-inter);
-  --color-primary: #042E93;
-  --color-primary-light: #E0EDFF;
-  --color-success: #16A34A;
-  --color-success-light: #DCFCE7;
-  --color-warning: #FF9F29;
-  --color-danger: #FF4747;
-  --color-info: #0062FF;
+
+  /* Brand */
+  --color-primary: #D4FF00;
+  --color-secondary: #00FFE0;
+  --color-accent: #FF2EC1;
+
+  /* Alerts */
+  --color-success: #22C55E;
+  --color-warning: #FACC15;
+  --color-error: #F75555;
+
+  /* Greyscale */
+  --color-gray-50: #FCFCFD;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1F2937;
+  --color-gray-900: #0F172A;
+
+  /* Additional */
+  --color-white: #FFFFFF;
+  --color-mango: #FF9F29;
+  --color-blue: #0062FF;
+  --color-purple: #764AF1;
+  --color-order-green: #1A4D2E;
+
+  /* Headings */
+  --text-h1: 48px;
+  --text-h1--line-height: 56px;
+  --text-h2: 40px;
+  --text-h2--line-height: 48px;
+  --text-h3: 32px;
+  --text-h3--line-height: 40px;
+  --text-h4: 24px;
+  --text-h4--line-height: 32px;
+  --text-h5: 20px;
+  --text-h5--line-height: 28px;
+  --text-h6: 18px;
+  --text-h6--line-height: 24px;
+
+  /* Body */
+  --text-body-xl: 18px;
+  --text-body-xl--line-height: 28px;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 16px;
+  --text-body-xs: 10px;
+  --text-body-xs--line-height: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
