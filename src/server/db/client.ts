@@ -19,12 +19,11 @@ const globalForPrisma = globalThis as unknown as {
 
 function createClient(): PrismaClient {
   const adapter = new PrismaPg(process.env.DATABASE_URL!);
+  // Only log errors + warnings — "query" logging adds significant latency
+  // per request in dev (~5-20ms per query). Enable temporarily if debugging SQL.
   return new PrismaClient({
     adapter,
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+    log: ["error", "warn"],
   });
 }
 

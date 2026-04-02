@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+/package-lock.json
+
 # testing
 /coverage
 
@@ -32,7 +34,6 @@ yarn-error.log*
 
 # env files — real secrets are never committed
 .env*
-!.env.example
 
 # vercel
 .vercel

@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 // dev (jay): Geist loaded via next/font — zero layout shift, self-hosted automatically
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import "react-toastify/dist/ReactToastify.css";
+import QueryProvider from "@/components/providers/QueryProvider";
+import { ToastProvider } from "@/components/providers/ToastProvider";
+import AuthProvider from "@/components/providers/AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -10,6 +14,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -28,10 +37,17 @@ export default function RootLayout({
     // dev (jay): font CSS vars injected here so all pages inherit them via Tailwind
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
       {/* dev (jay): flex flex-col so full-height page layouts work without extra wrappers */}
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>
+          <QueryProvider>
+            {children}
+            <ToastProvider />
+          </QueryProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }
