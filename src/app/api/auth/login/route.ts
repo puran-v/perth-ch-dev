@@ -67,8 +67,11 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // Step 3: Load user — generic failure message for "bad credentials"
-    const user = await db.user.findUnique({ where: { email } });
+    // Step 3: Load user — only select fields needed for auth check + response
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, fullName: true, email: true, role: true, passwordHash: true, isVerified: true },
+    });
 
     if (!user) {
       logger.warn("Login failed: unknown email", { ...ctx });

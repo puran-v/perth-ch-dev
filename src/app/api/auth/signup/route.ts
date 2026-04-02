@@ -64,18 +64,18 @@ export async function POST(req: Request): Promise<Response> {
 
     const { fullName, email, password } = parsed.data;
 
-    // Step 3: Check duplicate email
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    });
+    // Step 3 + 4: Run duplicate check and bcrypt hash in parallel
+    // These are independent — bcrypt takes ~100-200ms, DB lookup ~10-30ms
+    const [existingUser, passwordHash] = await Promise.all([
+      db.user.findUnique({ where: { email }, select: { id: true } }),
+      bcrypt.hash(password, 10),
+    ]);
 
     if (existingUser) {
       return error("EMAIL_EXISTS", "This email is already registered. Please log in or use a different email.", 409);
     }
 
-    // Step 4: Hash password and create user
-    const passwordHash = await bcrypt.hash(password, 10);
-
+    // Step 5: Create user with pre-computed hash
     const user = await db.user.create({
       data: {
         fullName,
@@ -93,7 +93,7 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
 
-    // Step 5: Issue OTP and send verification email
+    // Step 6: Issue OTP and send verification email
     const otpResult = await issueOtp(user.id, user.email);
 
     logger.info("Signup completed", { ...ctx, userId: user.id, emailSent: otpResult.emailSent });
