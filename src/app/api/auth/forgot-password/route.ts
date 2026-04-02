@@ -26,7 +26,7 @@ const TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
  * @module Auth - Forgot Password
  */
 function neutralSuccess(): Response {
-  return success({ message: "If an account exists, a password reset link has been sent" });
+  return success({ message: "A password reset link has been sent to your email. Please check your inbox and spam folder." });
 }
 
 /**
@@ -57,7 +57,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -130,6 +130,6 @@ export async function POST(req: Request): Promise<Response> {
     return neutralSuccess();
   } catch (err) {
     logger.error("Forgot password failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to process request", 500);
+    return error("INTERNAL_ERROR", "Something went wrong. Please try again.", 500);
   }
 }

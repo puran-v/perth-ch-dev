@@ -40,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -72,7 +72,7 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!user) {
       logger.warn("Login failed: unknown email", { ...ctx });
-      return error("INVALID_CREDENTIALS", "Invalid email or password", 401);
+      return error("INVALID_CREDENTIALS", "The email or password you entered is incorrect.", 401);
     }
 
     // Step 4: Verify password
@@ -80,7 +80,7 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!passwordValid) {
       logger.warn("Login failed: wrong password", { ...ctx, userId: user.id });
-      return error("INVALID_CREDENTIALS", "Invalid email or password", 401);
+      return error("INVALID_CREDENTIALS", "The email or password you entered is incorrect.", 401);
     }
 
     // Step 5: Check email verification status
@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
       logger.warn("Login failed: email not verified", { ...ctx, userId: user.id });
       return error(
         "EMAIL_NOT_VERIFIED",
-        "Please verify your email before logging in",
+        "Please verify your email before logging in. Check your inbox for the verification code.",
         403
       );
     }
@@ -117,6 +117,6 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch (err) {
     logger.error("Login failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to log in", 500);
+    return error("INTERNAL_ERROR", "Something went wrong while logging in. Please try again.", 500);
   }
 }

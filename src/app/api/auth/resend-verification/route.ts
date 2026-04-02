@@ -28,7 +28,7 @@ const ROUTE = "/api/auth/resend-verification";
  * @module Auth - Resend Verification
  */
 function neutralSuccess(): Response {
-  return success({ message: "If an account exists, a new code has been sent" });
+  return success({ message: "A new verification code has been sent to your email. Please check your inbox." });
 }
 
 /**
@@ -59,7 +59,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -111,6 +111,6 @@ export async function POST(req: Request): Promise<Response> {
     return neutralSuccess();
   } catch (err) {
     logger.error("Resend verification failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to resend verification code", 500);
+    return error("INTERNAL_ERROR", "Something went wrong. Please try again.", 500);
   }
 }

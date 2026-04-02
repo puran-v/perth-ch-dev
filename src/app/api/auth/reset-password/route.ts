@@ -41,7 +41,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -83,7 +83,7 @@ export async function POST(req: Request): Promise<Response> {
       logger.warn("Invalid or expired reset token", ctx);
       return error(
         "INVALID_OR_EXPIRED_RESET_TOKEN",
-        "Invalid or expired reset link",
+        "This reset link has expired or already been used. Please request a new one.",
         400
       );
     }
@@ -110,9 +110,9 @@ export async function POST(req: Request): Promise<Response> {
 
     logger.info("Password reset successful", { ...ctx, userId });
 
-    return success({ message: "Password has been reset successfully" });
+    return success({ message: "Your password has been reset successfully. You can now log in with your new password." });
   } catch (err) {
     logger.error("Reset password failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to reset password", 500);
+    return error("INTERNAL_ERROR", "Something went wrong while resetting your password. Please try again.", 500);
   }
 }
