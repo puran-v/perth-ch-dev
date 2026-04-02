@@ -22,11 +22,19 @@ Project requirements document you can refer and understand : https://docs.google
 
 Scope 1 — Operations Platform -- we will focus on this module right now : https://docs.google.com/document/d/1cZNmDEcIt1Ajke7-PN5B794h7_SC84oBg_QoCeEmkl8/edit?usp=drive_link
 ---
+## 1.0.1 make sure that this point should be never miss.
+  1. Read PROJECT_RULES.md — check the relevant section for every change                                                               
+  2. Follow AGENTS.md — read Next.js docs from node_modules/next/dist/docs/ before writing code                                        
+  3. Reference the Google Docs — project requirements + Scope 1 specs for context                                                      
+  4. Use gitconfig for all author comments (// Author: — name) and Co-Authored-By                                                       
+  5. Verify alignment with all applicable rules before committing  
 
 ## 1.1 Make sure to use utils and services
 - Ensure all reusable or common logic is abstracted into shared functions, components, or services. Avoid hardcoding or duplicating logic across the codebase. Examples include utilities like getToken, getCurrentUser, and centralized API services (e.g., Axios-based ApiService). Follow the defined project structure and standard full-stack best practices.
 
 - Before creating any new function, service, hook, or authentication logic, first check if an existing implementation already exists and reuse it. If it does not exist, create it in the appropriate module. If the logic has potential for reuse, place it in a shared or reusable location to ensure consistency and maintainability across the project.
+
+- If any files contain whitespaces, backslash-escaped
 
 - If you add something in project which demands the .env variable so put that on .env.examples so we can know which one we have to add.
 
@@ -504,6 +512,10 @@ If slower, must justify.
 
 ### 7.1 Roles
 
+- you can check this docs and implement on apis or make sure to get the idea about the roles and permissions : 
+- Doc Link: https://docs.google.com/spreadsheets/d/10NzxOdPMrwaDlf-yvjk74h0GKfVGEZuA_IL82QKofYU/edit?gid=0#gid=0
+
+Example
 - **ADMIN** — Full access, can delete bookings
 - **MANAGER** — Can approve bookings, manage staff
 - **STAFF** — Warehouse operations, standard tasks
