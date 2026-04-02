@@ -1,5 +1,22 @@
+/**
+ * Zod validation schemas for all authentication API endpoints.
+ *
+ * Every API route MUST validate input using these schemas before
+ * executing any business logic (PROJECT_RULES.md §4.6).
+ *
+ * @author jay
+ * @created 2026-04-01
+ * @module Auth - Validation
+ */
+
+// Old Author: jay
+// New Author: samir
+// Impact: added file-level JSDoc and schema-level JSDoc annotations
+// Reason: align with PROJECT_RULES.md §4.2 function documentation requirement
+
 import { z } from "zod";
 
+/** Validates signup request body: fullName, email, password with strength rules */
 export const signupSchema = z.object({
   fullName: z
     .string()
@@ -21,6 +38,7 @@ export const signupSchema = z.object({
     .regex(/\d/, "Password must contain at least one digit"),
 });
 
+/** Validates verify-email request body: email + 6-digit OTP code */
 export const verifyEmailSchema = z.object({
   email: z
     .string()
@@ -35,6 +53,7 @@ export const verifyEmailSchema = z.object({
     .regex(/^\d+$/, "Code must contain only digits"),
 });
 
+/** Validates resend-verification request body: email only */
 export const resendVerificationSchema = z.object({
   email: z
     .string()

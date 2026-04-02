@@ -250,19 +250,19 @@ export const defaultNavSections: NavSection[] = [
     items: [
       {
         label: "Org Setup",
-        href: "/admin/org-setup",
+        href: "/dashboard/org-setup",
         icon: OrgSetupIcon,
         badge: { type: "status", value: "Incomplete" },
       },
       {
         label: "Team & Users",
-        href: "/admin/team",
+        href: "/dashboard/team",
         icon: TeamUsersIcon,
         badge: { type: "notification", value: 2 },
       },
       {
         label: "Branding",
-        href: "/admin/branding",
+        href: "/dashboard/branding",
         icon: BrandingIcon,
       },
     ],
@@ -272,28 +272,28 @@ export const defaultNavSections: NavSection[] = [
     items: [
       {
         label: "Products",
-        href: "/admin/products",
+        href: "/dashboard/products",
         icon: ProductsIcon,
       },
       {
         label: "Bundles & Packages",
-        href: "/admin/bundles",
+        href: "/dashboard/bundles",
         icon: BundlesIcon,
       },
       {
         label: "Quote Templates",
-        href: "/admin/quote-templates",
+        href: "/dashboard/quote-templates",
         icon: QuoteTemplatesIcon,
       },
       {
         label: "Pricing & Rules",
-        href: "/admin/pricing",
+        href: "/dashboard/pricing",
         icon: PricingRulesIcon,
         badge: { type: "status", value: "Set Up" },
       },
       {
         label: "CSV Import",
-        href: "/admin/csv-import",
+        href: "/dashboard/csv-import",
         icon: CsvImportIcon,
       },
     ],

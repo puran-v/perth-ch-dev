@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
 
-// dev (jay): admin sign-up form — on success redirects to verify-email with mode=signup
+// dev (jay): sign-up form — on success redirects to verify-email with mode=signup
 export default function SignUpForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
@@ -57,7 +57,7 @@ export default function SignUpForm() {
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-16">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Sign Up</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Sign Up</h1>
         <p className="mt-1 text-sm text-gray-500">
           Sign Up to your account to continue
         </p>

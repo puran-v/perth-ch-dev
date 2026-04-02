@@ -8,7 +8,7 @@ import Checkbox from "@/components/ui/Checkbox";
 import Link from "next/link";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 
-// dev (jay): admin login form — no redirect yet, pending real auth integration
+// dev (jay): login form — no redirect yet, pending real auth integration
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
