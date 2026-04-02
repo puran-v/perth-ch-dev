@@ -83,6 +83,19 @@ const bookings = await prisma.booking.findMany({
 });
 ```
 
+### 2.2.2 Git Commit Co-Authored-By Rule
+
+- **Every commit MUST include a `Co-Authored-By` trailer** using the values from `git config user.name` and `git config user.email`.
+- **NEVER use AI/bot attribution** (e.g., "Claude Opus", "noreply@anthropic.com") in the Co-Authored-By line.
+- Always run `git config user.name` and `git config user.email` before committing to get the correct values.
+
+```
+Co-Authored-By: <git config user.name> <<git config user.email>>
+
+# Example:
+Co-Authored-By: samir <jay@shipfast.agency>
+```
+
 
 ### 2.3 AI Assists, Never Auto-Executes
 
