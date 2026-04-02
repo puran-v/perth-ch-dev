@@ -24,7 +24,7 @@ const ROUTE = "/api/auth/verify-email";
  * @module Auth - Email Verification
  */
 function invalidOtpResponse(): Response {
-  return error("INVALID_OR_EXPIRED_OTP", "Invalid or expired code", 400);
+  return error("INVALID_OR_EXPIRED_OTP", "The code is invalid or has expired. Please request a new one.", 400);
 }
 
 /**
@@ -55,7 +55,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -121,9 +121,9 @@ export async function POST(req: Request): Promise<Response> {
 
     logger.info("Email verified", { ...ctx, userId: user.id });
 
-    return success({ message: "Email verified successfully" });
+    return success({ message: "Your email has been verified successfully. You can now log in." });
   } catch (err) {
     logger.error("Email verification failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to verify email", 500);
+    return error("INTERNAL_ERROR", "Something went wrong while verifying your email. Please try again.", 500);
   }
 }

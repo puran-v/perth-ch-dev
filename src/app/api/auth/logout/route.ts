@@ -43,7 +43,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const responseBody = {
       success: true as const,
-      data: { message: "Logged out successfully" },
+      data: { message: "You have been logged out successfully." },
     };
 
     return new Response(JSON.stringify(responseBody), {
@@ -55,6 +55,6 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch (err) {
     logger.error("Logout failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to log out", 500);
+    return error("INTERNAL_ERROR", "Something went wrong while logging out. Please try again.", 500);
   }
 }

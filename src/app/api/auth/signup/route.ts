@@ -53,7 +53,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) {
       return error(
         "VALIDATION_ERROR",
-        "Invalid input",
+        "Please check your input and try again.",
         400,
         parsed.error.issues.map((i) => ({
           field: i.path.join("."),
@@ -70,7 +70,7 @@ export async function POST(req: Request): Promise<Response> {
     });
 
     if (existingUser) {
-      return error("EMAIL_EXISTS", "Email already registered", 409);
+      return error("EMAIL_EXISTS", "This email is already registered. Please log in or use a different email.", 409);
     }
 
     // Step 4: Hash password and create user
@@ -101,6 +101,6 @@ export async function POST(req: Request): Promise<Response> {
     return success({ ...user, emailSent: otpResult.emailSent }, 201);
   } catch (err) {
     logger.error("Signup failed", ctx, err);
-    return error("INTERNAL_ERROR", "Failed to create account", 500);
+    return error("INTERNAL_ERROR", "Something went wrong while creating your account. Please try again.", 500);
   }
 }
