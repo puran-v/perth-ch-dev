@@ -1,7 +1,32 @@
+/**
+ * Rate limiter factory — Upstash Redis in production, in-memory fallback for dev.
+ *
+ * Each limiter is configured per route with specific windows and limits.
+ * All limiters expose a `.limit(key)` method returning `{ success, reset }`.
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Shared - Rate Limiting
+ */
+
+// Author: Puran
+// Impact: rate limiters for all auth routes (signup, verify, resend, login, forgot, reset)
+// Reason: prevent abuse on expensive operations (bcrypt, DB writes, email sends)
+
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createMemoryCooldown, createMemorySlidingWindow } from "./memory";
 
+/**
+ * Creates an Upstash Redis client if env vars are set, otherwise returns null
+ * and logs a warning. Null triggers in-memory fallback for each limiter.
+ *
+ * @returns Redis client or null
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Shared - Rate Limiting
+ */
 function createRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;

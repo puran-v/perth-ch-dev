@@ -91,7 +91,8 @@ export async function POST(req: Request): Promise<Response> {
     const userId = resetToken.user.id;
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Step 4: Update password + consume token + invalidate all sessions in one transaction
+    // Step 4: Update password + consume token + soft-delete all sessions in one transaction
+    // §5.3 — soft delete (set deletedAt) instead of hard delete for audit trail
     await db.$transaction([
       db.user.update({
         where: { id: userId },
@@ -101,8 +102,9 @@ export async function POST(req: Request): Promise<Response> {
         where: { id: resetToken.id },
         data: { consumedAt: new Date() },
       }),
-      db.session.deleteMany({
-        where: { userId },
+      db.session.updateMany({
+        where: { userId, deletedAt: null },
+        data: { deletedAt: new Date() },
       }),
     ]);
 
