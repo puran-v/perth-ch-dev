@@ -37,7 +37,7 @@ model User {
   orgId        String?
   fullName     String
   email        String    @unique
-  passwordHash String
+  passwordHash String?
   role         UserRole  @default(ADMIN)
   isVerified   Boolean   @default(false)
   createdAt    DateTime  @default(now())
@@ -48,9 +48,33 @@ model User {
   emailVerificationOtps EmailVerificationOtp[]
   sessions              Session[]
   passwordResetTokens   PasswordResetToken[]
+  accounts              Account[]
 
   @@index([orgId])
   @@map("users")
+}
+
+model Account {
+  id                String    @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  type              String    @default("oauth")
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
 }
 
 model Session {

@@ -129,3 +129,20 @@ export const resetPasswordLimiter = redis
       analytics: false,
     })
   : createMemorySlidingWindow(5, FIFTEEN_MIN_MS);
+
+/**
+ * OAuth establish: 10 requests per 15 minutes per IP
+ * Prevents abuse of the OAuth-to-session bridge endpoint.
+ *
+ * @author Puran
+ * @created 2026-04-02
+ * @module Auth - OAuth Rate Limiting
+ */
+export const oauthEstablishLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "15 m"),
+      prefix: "rl:oauth-establish",
+      analytics: false,
+    })
+  : createMemorySlidingWindow(10, FIFTEEN_MIN_MS);
