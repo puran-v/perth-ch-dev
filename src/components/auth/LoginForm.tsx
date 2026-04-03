@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 import { useAuth } from "@/hooks";
+import { useOAuth } from "@/hooks/useOAuth";
 import { toast } from "react-toastify";
 // Old Author: jay
 // New Author: Puran
@@ -26,12 +27,12 @@ import { toast } from "react-toastify";
  */
 export default function LoginForm() {
   const { login } = useAuth();
+  const { loading: oauthLoading, error: oauthError, initiateOAuth } = useOAuth();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -51,7 +52,9 @@ export default function LoginForm() {
             ? "Too many attempts. Please try again later."
             : urlError === "EmailNotVerified"
               ? "Your email is not verified by the provider. Please use a verified account."
-              : null;
+              : urlError === "AccountDeleted"
+                ? "This account has been deactivated. Please contact your admin."
+                : null;
 
   /**
    * Client-side validation before hitting the API.
@@ -164,49 +167,6 @@ export default function LoginForm() {
     }
   };
 
-  /**
-   * Initiates OAuth sign-in by submitting a hidden form to Auth.js.
-   * Uses form POST (not fetch) so the browser follows the 302 redirect
-   * to the OAuth provider natively. Works reliably in Next.js 16.
-   *
-   * @param provider - The OAuth provider ID ("google" or "microsoft-entra-id")
-   *
-   * @author Puran
-   * @created 2026-04-02
-   * @module Auth - Login
-   */
-  const handleOAuth = async (provider: string) => {
-    setOauthLoading(provider);
-    try {
-      // Fetch CSRF token from Auth.js
-      const csrfRes = await fetch("/api/auth/csrf");
-      const { csrfToken } = await csrfRes.json();
-
-      // Submit a hidden form so the browser follows the 302 redirect natively
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = `/api/auth/signin/${provider}`;
-
-      const csrfInput = document.createElement("input");
-      csrfInput.type = "hidden";
-      csrfInput.name = "csrfToken";
-      csrfInput.value = csrfToken;
-      form.appendChild(csrfInput);
-
-      const callbackInput = document.createElement("input");
-      callbackInput.type = "hidden";
-      callbackInput.name = "callbackUrl";
-      callbackInput.value = "/api/auth/oauth/establish";
-      form.appendChild(callbackInput);
-
-      document.body.appendChild(form);
-      form.submit();
-    } catch {
-      setOauthLoading(null);
-      setErrors({ general: "Failed to start social login. Please try again." });
-    }
-  };
-
   return (
     <div className="flex flex-col gap-16">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
@@ -225,6 +185,13 @@ export default function LoginForm() {
           </div>
         )}
 
+        {/* OAuth hook error */}
+        {oauthError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+            <p className="text-sm text-red-700">{oauthError}</p>
+          </div>
+        )}
+
         {/* General error banner */}
         {errors.general && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
@@ -237,7 +204,7 @@ export default function LoginForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("google")}
+            onClick={() => initiateOAuth("google")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -252,7 +219,7 @@ export default function LoginForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("microsoft-entra-id")}
+            onClick={() => initiateOAuth("microsoft-entra-id")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 23 23">

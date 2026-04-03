@@ -16,6 +16,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createMemoryCooldown, createMemorySlidingWindow } from "./memory";
+import { logger } from "@/server/lib/logger";
 
 /**
  * Creates an Upstash Redis client if env vars are set, otherwise returns null
@@ -35,9 +36,9 @@ function createRedis() {
     return new Redis({ url, token });
   }
 
-  console.warn(
-    "[rate-limit] UPSTASH_REDIS_REST_URL / TOKEN not set — using in-memory limiters (dev / single-instance only)"
-  );
+  logger.warn("Upstash not configured — using in-memory limiters (dev only)", {
+    route: "rate-limit/init",
+  });
   return null;
 }
 

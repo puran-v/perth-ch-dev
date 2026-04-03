@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
 import { toast } from "react-toastify";
+import { useOAuth } from "@/hooks/useOAuth";
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's toast with OAuth Google button + real signup API call
@@ -26,12 +27,12 @@ import { toast } from "react-toastify";
  */
 export default function SignUpForm() {
   const router = useRouter();
+  const { loading: oauthLoading, error: oauthError, initiateOAuth } = useOAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<{
     fullName?: string;
     email?: string;
@@ -144,47 +145,6 @@ export default function SignUpForm() {
     }
   };
 
-  /**
-   * Initiates OAuth sign-in with the specified provider.
-   *
-   * @param provider - The OAuth provider ID ("google" or "microsoft-entra-id")
-   *
-   * @author Puran
-   * @created 2026-04-02
-   * @module Auth - Signup
-   */
-  const handleOAuth = async (provider: string) => {
-    setOauthLoading(provider);
-    try {
-      // Fetch CSRF token from Auth.js
-      const csrfRes = await fetch("/api/auth/csrf");
-      const { csrfToken } = await csrfRes.json();
-
-      // Submit a hidden form so the browser follows the 302 redirect natively
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = `/api/auth/signin/${provider}`;
-
-      const csrfInput = document.createElement("input");
-      csrfInput.type = "hidden";
-      csrfInput.name = "csrfToken";
-      csrfInput.value = csrfToken;
-      form.appendChild(csrfInput);
-
-      const callbackInput = document.createElement("input");
-      callbackInput.type = "hidden";
-      callbackInput.name = "callbackUrl";
-      callbackInput.value = "/api/auth/oauth/establish";
-      form.appendChild(callbackInput);
-
-      document.body.appendChild(form);
-      form.submit();
-    } catch {
-      setOauthLoading(null);
-      setErrors({ general: "Failed to start social login. Please try again." });
-    }
-  };
-
   return (
     <div className="flex flex-col gap-16">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
@@ -195,6 +155,13 @@ export default function SignUpForm() {
             Create your account to get started
           </p>
         </div>
+
+        {/* OAuth hook error */}
+        {oauthError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+            <p className="text-sm text-red-700">{oauthError}</p>
+          </div>
+        )}
 
         {/* General error banner */}
         {errors.general && (
@@ -208,7 +175,7 @@ export default function SignUpForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("google")}
+            onClick={() => initiateOAuth("google")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -223,7 +190,7 @@ export default function SignUpForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("microsoft-entra-id")}
+            onClick={() => initiateOAuth("microsoft-entra-id")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 23 23">

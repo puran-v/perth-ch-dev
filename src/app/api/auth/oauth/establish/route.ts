@@ -19,7 +19,7 @@
 // Reason: one session system for all login methods per architecture decision
 
 import { NextResponse } from "next/server";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { db } from "@/server/db/client";
 import { createSession, sessionCookieHeader } from "@/server/lib/auth/session";
 import { oauthEstablishLimiter } from "@/server/lib/rate-limit";
@@ -77,8 +77,8 @@ export async function GET(req: Request): Promise<Response> {
     // Create our app session (same as email/password login)
     const { token, expiresAt } = await createSession(userId);
 
-    // Clear Auth.js session so we don't carry two session cookies
-    await signOut({ redirect: false }).catch(() => {});
+    // Auth.js JWT cookie expires in 5min (session.maxAge in auth.ts)
+    // so it self-cleans — no explicit signOut needed here
 
     logger.info("OAuth session established", { ...ctx, userId });
 
