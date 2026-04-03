@@ -28,6 +28,9 @@ Scope 1 — Operations Platform -- we will focus on this module right now : http
   3. Reference the Google Docs — project requirements + Scope 1 specs for context                                                      
   4. Use gitconfig for all author comments (// Author: — name) and Co-Authored-By                                                       
   5. Verify alignment with all applicable rules before committing  
+  5. while create the pr make sure this kind of of things never mention : Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> and also generate by ai or claude nothing will be there
+
+
 
 ## 1.1 Make sure to use utils and services
 - Ensure all reusable or common logic is abstracted into shared functions, components, or services. Avoid hardcoding or duplicating logic across the codebase. Examples include utilities like getToken, getCurrentUser, and centralized API services (e.g., Axios-based ApiService). Follow the defined project structure and standard full-stack best practices.

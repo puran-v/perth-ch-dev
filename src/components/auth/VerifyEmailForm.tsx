@@ -169,6 +169,9 @@ export default function VerifyEmailForm() {
           </div>
         )}
 
+        {/* Author: samir */}
+        {/* Impact: moved "Send Again" from inside input to below-right of input */}
+        {/* Reason: match Figma — resend link sits below the OTP field, right-aligned */}
         <div>
           <p className="mb-1.5 text-sm font-medium text-gray-700">Enter the OTP</p>
           <Input
@@ -181,22 +184,22 @@ export default function VerifyEmailForm() {
             maxLength={6}
             autoComplete="one-time-code"
             disabled={loading}
-            rightElement={
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={resending || loading}
-                className={[
-                  "text-xs font-medium whitespace-nowrap transition-colors",
-                  resending || loading
-                    ? "text-gray-400 cursor-not-allowed"
-                    : "text-[#1a2f6e] hover:underline cursor-pointer",
-                ].join(" ")}
-              >
-                {resending ? "Sending..." : "Send Again"}
-              </button>
-            }
           />
+          <div className="flex justify-end mt-1.5">
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending || loading}
+              className={[
+                "text-sm font-medium whitespace-nowrap transition-colors",
+                resending || loading
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-[#1a2f6e] hover:underline cursor-pointer",
+              ].join(" ")}
+            >
+              {resending ? "Sending..." : "Send Again"}
+            </button>
+          </div>
         </div>
 
         <Button type="submit" fullWidth loading={loading} size="lg">
