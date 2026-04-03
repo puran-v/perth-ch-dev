@@ -117,18 +117,21 @@ export async function POST(req: Request): Promise<Response> {
     }
     const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    // Step 7: Send reset email — awaited so we can roll back the token on failure
-    try {
-      await sendPasswordResetEmail(user.email, resetUrl);
-      logger.info("Password reset email sent", { ...ctx, userId: user.id });
-    } catch (emailErr) {
-      logger.error("Password reset email send failed", { ...ctx, userId: user.id }, emailErr);
-      // Consume the token since email didn't go out
-      await db.passwordResetToken.updateMany({
-        where: { userId: user.id, tokenHash, consumedAt: null },
-        data: { consumedAt: new Date() },
-      }).catch(() => {});
-    }
+    // Author: samir
+    // Impact: fire reset email asynchronously so response returns immediately
+    // Reason: SMTP send was blocking response for 500ms-3s; response is neutral regardless
+    // Step 7: Send reset email asynchronously — roll back token in background if send fails
+    sendPasswordResetEmail(user.email, resetUrl)
+      .then(() => {
+        logger.info("Password reset email sent", { ...ctx, userId: user.id });
+      })
+      .catch((emailErr) => {
+        logger.error("Password reset email send failed", { ...ctx, userId: user.id }, emailErr);
+        db.passwordResetToken.updateMany({
+          where: { userId: user.id, tokenHash, consumedAt: null },
+          data: { consumedAt: new Date() },
+        }).catch(() => {});
+      });
 
     return neutralSuccess();
   } catch (err) {

@@ -166,11 +166,14 @@ export default function ResetPasswordForm() {
     );
   }
 
+  // Author: samir
+  // Impact: responsive gap, heading size, and max-width; fixed icon consistency
+  // Reason: gap-16 pushed content off-screen on 320px; icons had mismatched sizes and colors
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-16">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8 sm:gap-16 max-w-md mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Set new password</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Set new password</h1>
         <p className="mt-1 text-sm text-gray-500">
           Enter your new password below. It must be at least 8 characters with uppercase, lowercase, and a digit.
         </p>

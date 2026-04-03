@@ -73,13 +73,17 @@ export default function ForgotPasswordForm() {
     setSubmitted(true);
   };
 
+  // Author: samir
+  // Impact: made forgot-password form fully responsive with constrained width and scaled gaps
+  // Reason: gap-16 and unconstrained width caused layout issues on 320px screens
+
   // Success state — "check your email" confirmation
   if (submitted) {
     return (
-      <div className="flex flex-col gap-6 items-center text-center">
-        <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+      <div className="flex flex-col gap-4 sm:gap-6 items-center text-center max-w-md mx-auto">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-blue-50 flex items-center justify-center">
           <svg
-            className="w-8 h-8 text-[#1a2f6e]"
+            className="w-7 h-7 sm:w-8 sm:h-8 text-[#1a2f6e]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -89,7 +93,7 @@ export default function ForgotPasswordForm() {
           </svg>
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Check your email</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Check your email</h1>
           <p className="mt-2 text-sm text-gray-500">
             If an account exists for <span className="font-medium text-gray-700">{email}</span>,
             we&apos;ve sent a password reset link. Check your inbox and spam folder.
@@ -109,10 +113,10 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-16">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8 sm:gap-16 max-w-md mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Forgot your password?</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Forgot your password?</h1>
         <p className="mt-1 text-sm text-gray-500">
           Enter your email and we&apos;ll send you a link to reset your password.
         </p>
