@@ -8,11 +8,14 @@ interface CardProps {
   shadow?: boolean;
 }
 
+// Author: samir
+// Impact: responsive padding — smaller on mobile, scales up on md+
+// Reason: fixed padding was too large on 320px screens causing content overflow
 const PADDING_MAP = {
   none: '',
-  sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  sm: 'p-3 sm:p-4',
+  md: 'p-4 sm:p-6',
+  lg: 'p-4 sm:p-6 lg:p-8',
 } as const;
 
 export function Card({

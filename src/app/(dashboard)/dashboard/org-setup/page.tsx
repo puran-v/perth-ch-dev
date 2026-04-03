@@ -62,7 +62,7 @@ export default function OrgSetupPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Top Bar */}
       <TopBar
         title="Org Setup"
@@ -88,13 +88,16 @@ export default function OrgSetupPage() {
       {/* Payment & Invoice Settings */}
       <PaymentInvoiceForm initialData={INITIAL_PAYMENT_DATA} />
 
+      {/* Author: samir */}
+      {/* Impact: buttons stack vertically on mobile, row on sm+ */}
+      {/* Reason: two large buttons side-by-side overflowed on 320px screens */}
       {/* Action Buttons */}
-      <div className="flex items-center gap-4 pb-8">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pb-6 sm:pb-8">
         <Button variant="outline" size="lg" onClick={handleSaveDraft}>
           Save Draft
         </Button>
         <Button variant="primary" size="lg" onClick={handleSaveAndContinue}>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center justify-center gap-2">
             Save & Continue
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

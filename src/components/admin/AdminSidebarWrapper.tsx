@@ -15,7 +15,7 @@
 // Impact: wraps AdminSidebar with dynamic user data + logout
 // Reason: sidebar profile was static; now shows real logged-in user
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 import { useRouter } from "next/navigation";
 import AdminSidebar, {
   defaultNavSections,
@@ -23,6 +23,23 @@ import AdminSidebar, {
   defaultTenant,
   defaultUser,
 } from "@/components/admin/AdminSidebar";
+
+// Author: samir
+// Impact: added MobileSidebarContext for layout hamburger toggle
+// Reason: layout needs to control sidebar open/close state on mobile
+interface MobileSidebarContextType {
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
+}
+
+const MobileSidebarContext = createContext<MobileSidebarContextType>({
+  mobileOpen: false,
+  setMobileOpen: () => {},
+});
+
+export function useMobileSidebar() {
+  return useContext(MobileSidebarContext);
+}
 
 interface CurrentUser {
   id: string;
@@ -66,6 +83,7 @@ function formatRole(role: string): string {
 export default function AdminSidebarWrapper() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const { mobileOpen, setMobileOpen } = useMobileSidebar();
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -121,6 +139,21 @@ export default function AdminSidebarWrapper() {
       user={user}
       navSections={defaultNavSections}
       comingSoon={defaultComingSoon}
+      mobileOpen={mobileOpen}
+      onMobileClose={() => setMobileOpen(false)}
     />
+  );
+}
+
+// Author: samir
+// Impact: provider component wraps layout to share mobile sidebar state
+// Reason: hamburger button in layout header needs to toggle sidebar open state
+export function MobileSidebarProvider({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <MobileSidebarContext.Provider value={{ mobileOpen, setMobileOpen }}>
+      {children}
+    </MobileSidebarContext.Provider>
   );
 }
