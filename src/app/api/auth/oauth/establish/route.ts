@@ -83,7 +83,8 @@ export async function GET(req: Request): Promise<Response> {
     logger.info("OAuth session established", { ...ctx, userId });
 
     // Redirect: dashboard if org exists, org-setup if not (§2.1 multi-tenant)
-    const redirectPath = user.orgId ? "/dashboard" : "/dashboard/org-setup";
+    // Append ?oauth=success so the frontend can show a welcome toast
+    const redirectPath = user.orgId ? "/dashboard?oauth=success" : "/dashboard/org-setup?oauth=success";
 
     const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
     response.headers.set("Set-Cookie", sessionCookieHeader(token, expiresAt));

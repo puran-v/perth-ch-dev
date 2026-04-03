@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/Input";
@@ -55,6 +55,18 @@ export default function LoginForm() {
               : urlError === "AccountDeleted"
                 ? "This account has been deactivated. Please contact your admin."
                 : null;
+
+  // Show toast for OAuth errors on mount (once)
+  useEffect(() => {
+    if (oauthErrorMessage) {
+      toast.error(oauthErrorMessage);
+      // Clean up URL param so toast doesn't re-fire on navigation
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Client-side validation before hitting the API.
