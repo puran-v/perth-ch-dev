@@ -3,6 +3,7 @@
 // Impact: replaced static AdminSidebar with dynamic AdminSidebarWrapper
 // Reason: sidebar now shows real user name/role from session + logout button
 
+import { Suspense } from "react";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 
 export default function AdminLayout({
@@ -43,7 +44,10 @@ export default function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <AdminSidebarWrapper />
+      {/* Suspense required — AdminSidebarWrapper uses useSearchParams for OAuth toast */}
+      <Suspense>
+        <AdminSidebarWrapper />
+      </Suspense>
       <main className="flex-1 overflow-y-auto content-scrollbar bg-[#F8FAFC]">
         <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-8 py-4">
           <div className="flex items-center gap-3">

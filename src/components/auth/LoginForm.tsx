@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/Input";
@@ -9,17 +9,16 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 import { useAuth } from "@/hooks";
+import { useOAuth } from "@/hooks/useOAuth";
 import { toast } from "react-toastify";
-import { signIn } from "next-auth/react";
-
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's useAuth/toast with OAuth Google button + error handling from URL params
-// Reason: combined email/password login (with session storage) + social login (Google)
+// Reason: combined email/password login (with session storage) + social login (Google/Microsoft)
 
 /**
  * Login form with email/password and social login (Google).
- * Calls POST /api/auth/login for password auth, signIn() for OAuth.
+ * Calls POST /api/auth/login for password auth, form POST for OAuth.
  * Uses useAuth hook to store user in client state + toast for feedback.
  *
  * @author Puran
@@ -28,12 +27,12 @@ import { signIn } from "next-auth/react";
  */
 export default function LoginForm() {
   const { login } = useAuth();
+  const { loading: oauthLoading, error: oauthError, initiateOAuth } = useOAuth();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -51,7 +50,23 @@ export default function LoginForm() {
           ? "Social login failed. Please try again."
           : urlError === "TooManyAttempts"
             ? "Too many attempts. Please try again later."
-            : null;
+            : urlError === "EmailNotVerified"
+              ? "Your email is not verified by the provider. Please use a verified account."
+              : urlError === "AccountDeleted"
+                ? "This account has been deactivated. Please contact your admin."
+                : null;
+
+  // Show toast for OAuth errors on mount (once)
+  useEffect(() => {
+    if (oauthErrorMessage) {
+      toast.error(oauthErrorMessage);
+      // Clean up URL param so toast doesn't re-fire on navigation
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Client-side validation before hitting the API.
@@ -125,7 +140,7 @@ export default function LoginForm() {
             setErrors({ general: "The email or password you entered is incorrect." });
             break;
           case "OAUTH_ONLY_ACCOUNT":
-            setErrors({ general: "This account uses social login. Please sign in with Google." });
+            setErrors({ general: "This account uses social login. Please sign in with Google or Microsoft." });
             break;
           case "EMAIL_NOT_VERIFIED":
             setErrors({
@@ -164,21 +179,6 @@ export default function LoginForm() {
     }
   };
 
-  /**
-   * Initiates OAuth sign-in with the specified provider.
-   * Redirects to the OAuth provider, then to our bridge endpoint.
-   *
-   * @param provider - The OAuth provider ID ("google" or "microsoft-entra-id")
-   *
-   * @author Puran
-   * @created 2026-04-02
-   * @module Auth - Login
-   */
-  const handleOAuth = (provider: string) => {
-    setOauthLoading(provider);
-    signIn(provider, { callbackUrl: "/api/auth/oauth/establish" });
-  };
-
   return (
     <div className="flex flex-col gap-16">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
@@ -197,6 +197,13 @@ export default function LoginForm() {
           </div>
         )}
 
+        {/* OAuth hook error */}
+        {oauthError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+            <p className="text-sm text-red-700">{oauthError}</p>
+          </div>
+        )}
+
         {/* General error banner */}
         {errors.general && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
@@ -209,7 +216,7 @@ export default function LoginForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("google")}
+            onClick={() => initiateOAuth("google")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -221,11 +228,10 @@ export default function LoginForm() {
             {oauthLoading === "google" ? "Connecting..." : "Continue with Google"}
           </button>
 
-          {/* TODO: uncomment when Microsoft Entra ID is configured
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("microsoft-entra-id")}
+            onClick={() => initiateOAuth("microsoft-entra-id")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 23 23">
@@ -236,7 +242,6 @@ export default function LoginForm() {
             </svg>
             {oauthLoading === "microsoft-entra-id" ? "Connecting..." : "Continue with Microsoft"}
           </button>
-          */}
         </div>
 
         {/* Divider */}

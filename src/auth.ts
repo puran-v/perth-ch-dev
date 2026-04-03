@@ -42,6 +42,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   secret: process.env.AUTH_SECRET,
 
+  // Route all Auth.js internal logs through our structured logger
+  logger: {
+    error(error) {
+      logger.error("Auth.js error", { route: "/api/auth" }, error);
+    },
+    warn(code) {
+      logger.warn(`Auth.js warning: ${code}`, { route: "/api/auth" });
+    },
+  },
+
   pages: {
     signIn: "/login",
     error: "/login",
@@ -49,118 +59,165 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   callbacks: {
     /**
-     * Auto-provision: creates a new User if no account exists for the
-     * verified email. Links the OAuth Account row on every sign-in.
-     * OAuth email is treated as verified since the provider asserts it.
+     * Auto-provision: finds or creates a User for the verified email,
+     * links the OAuth Account row, and stores the Prisma userId on the
+     * Auth.js user object so the jwt callback can read it without
+     * a second DB query.
+     *
+     * Uses transaction + P2002 handling to prevent race conditions
+     * when two concurrent OAuth requests arrive with the same email.
+     *
+     * Rejects soft-deleted users explicitly (§5.3).
      *
      * @author Puran
      * @created 2026-04-02
      * @module Auth - OAuth
      */
     async signIn({ user, account, profile }) {
-      if (!account || !user.email) return false;
+      if (!account || !user.email) return "/login?error=OAuthFailed";
 
       const email = user.email.toLowerCase().trim();
 
       // Require verified email from provider
-      const emailVerified = Boolean(profile?.email_verified);
+      // Google sends email_verified explicitly; Microsoft Entra ID emails
+      // are implicitly verified (they come from the tenant directory)
+      const isMicrosoft = account.provider === "microsoft-entra-id";
+      const emailVerified = isMicrosoft || Boolean(profile?.email_verified);
       if (!emailVerified) {
-        logger.warn("OAuth sign-in rejected: email not verified by provider", {
+        logger.warn("OAuth rejected: email not verified by provider", {
           route: "/api/auth/callback",
           provider: account.provider,
         });
-        return false;
+        return "/login?error=EmailNotVerified";
       }
 
-      // Find existing user or auto-create one
-      let existingUser = await db.user.findUnique({
-        where: { email, deletedAt: null },
-      });
+      try {
+        // Check for soft-deleted user first — prevent account resurrection (§5.3)
+        const anyUser = await db.user.findUnique({ where: { email } });
+        if (anyUser?.deletedAt) {
+          logger.warn("OAuth rejected: soft-deleted user attempted login", {
+            route: "/api/auth/callback",
+            provider: account.provider,
+            userId: anyUser.id,
+          });
+          return "/login?error=AccountDeleted";
+        }
 
-      if (!existingUser) {
-        // Auto-provision: create user from OAuth profile
-        const fullName = user.name || profile?.name || email.split("@")[0];
-        existingUser = await db.user.create({
-          data: {
-            fullName: String(fullName),
-            email,
-            // passwordHash is null — OAuth-only account
-            role: "ADMIN",
-            isVerified: true, // OAuth email is provider-verified
+        // Find or create user in a transaction to prevent race conditions
+        // If two concurrent requests try to create the same user, the second
+        // one catches P2002 (unique constraint) and looks up the existing row
+        const existingUser = await db.$transaction(async (tx) => {
+          let dbUser = await tx.user.findUnique({
+            where: { email, deletedAt: null },
+          });
+
+          if (!dbUser) {
+            const fullName = user.name || profile?.name || email.split("@")[0];
+            try {
+              dbUser = await tx.user.create({
+                data: {
+                  fullName: String(fullName),
+                  email,
+                  role: "ADMIN",
+                  isVerified: true,
+                },
+              });
+
+              logger.info("OAuth auto-provisioned new user", {
+                route: "/api/auth/callback",
+                provider: account.provider,
+                userId: dbUser.id,
+              });
+            } catch (createErr: unknown) {
+              // P2002 = unique constraint violation — another request created this user
+              const isPrismaUniqueError =
+                createErr !== null &&
+                typeof createErr === "object" &&
+                "code" in createErr &&
+                (createErr as { code: string }).code === "P2002";
+
+              if (isPrismaUniqueError) {
+                dbUser = await tx.user.findUniqueOrThrow({
+                  where: { email, deletedAt: null },
+                });
+              } else {
+                throw createErr;
+              }
+            }
+          }
+
+          return dbUser;
+        });
+
+        // Upsert Account link row
+        // Don't store idToken — can be very large (>2KB) and not needed after callback
+        await db.account.upsert({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
           },
-        });
-
-        logger.info("OAuth auto-provisioned new user", {
-          route: "/api/auth/callback",
-          provider: account.provider,
-          userId: existingUser.id,
-        });
-      }
-
-      // Upsert Account link row
-      await db.account.upsert({
-        where: {
-          provider_providerAccountId: {
+          update: {
+            accessToken: account.access_token ?? null,
+            refreshToken: account.refresh_token ?? null,
+            expiresAt: account.expires_at ?? null,
+            tokenType: account.token_type ?? null,
+            scope: account.scope ?? null,
+          },
+          create: {
+            userId: existingUser.id,
             provider: account.provider,
             providerAccountId: account.providerAccountId,
+            type: account.type ?? "oauth",
+            accessToken: account.access_token ?? null,
+            refreshToken: account.refresh_token ?? null,
+            expiresAt: account.expires_at ?? null,
+            tokenType: account.token_type ?? null,
+            scope: account.scope ?? null,
           },
-        },
-        update: {
-          accessToken: account.access_token ?? null,
-          refreshToken: account.refresh_token ?? null,
-          expiresAt: account.expires_at ?? null,
-          tokenType: account.token_type ?? null,
-          scope: account.scope ?? null,
-          idToken: account.id_token ?? null,
-        },
-        create: {
-          userId: existingUser.id,
-          provider: account.provider,
-          providerAccountId: account.providerAccountId,
-          type: account.type ?? "oauth",
-          accessToken: account.access_token ?? null,
-          refreshToken: account.refresh_token ?? null,
-          expiresAt: account.expires_at ?? null,
-          tokenType: account.token_type ?? null,
-          scope: account.scope ?? null,
-          idToken: account.id_token ?? null,
-        },
-      });
-
-      // Mark user as verified if not already (OAuth email is provider-verified)
-      if (!existingUser.isVerified) {
-        await db.user.update({
-          where: { id: existingUser.id },
-          data: { isVerified: true },
         });
+
+        // Mark user as verified if not already (OAuth email is provider-verified)
+        if (!existingUser.isVerified) {
+          await db.user.update({
+            where: { id: existingUser.id },
+            data: { isVerified: true },
+          });
+        }
+
+        // Store userId on the Auth.js user object so jwt callback can read it
+        // without a separate DB query (eliminates redundant lookup)
+        user.id = existingUser.id;
+
+        logger.info("OAuth sign-in allowed", {
+          route: "/api/auth/callback",
+          provider: account.provider,
+          userId: existingUser.id,
+        });
+
+        return true;
+      } catch (err) {
+        logger.error("OAuth sign-in DB error", {
+          route: "/api/auth/callback",
+          provider: account.provider,
+        }, err);
+        return "/login?error=OAuthFailed";
       }
-
-      logger.info("OAuth sign-in allowed", {
-        route: "/api/auth/callback",
-        provider: account.provider,
-        userId: existingUser.id,
-      });
-
-      return true;
     },
 
     /**
-     * Puts our Prisma user ID into the JWT so the bridge can read it.
+     * Reads the Prisma userId from the Auth.js user object (set by signIn
+     * callback) and stores it in the JWT. No additional DB query needed.
      *
      * @author Puran
      * @created 2026-04-02
      * @module Auth - OAuth
      */
     async jwt({ token, user, account }) {
-      if (account && user?.email) {
-        const email = user.email.toLowerCase().trim();
-        const dbUser = await db.user.findUnique({
-          where: { email, deletedAt: null },
-          select: { id: true },
-        });
-        if (dbUser) {
-          token.userId = dbUser.id;
-        }
+      // On initial sign-in, user.id is set by our signIn callback to the Prisma cuid
+      if (account && user?.id) {
+        token.userId = user.id;
       }
       return token;
     },
