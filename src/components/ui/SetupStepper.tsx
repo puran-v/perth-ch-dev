@@ -49,7 +49,7 @@ export function SetupStepper({ steps, className = '', onStepClick }: SetupSteppe
                 className={[
                   'flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold transition-all',
                   step.status === 'current'
-                    ? 'bg-blue-100 text-primary'
+                    ? 'bg-[#042E9333] text-[#042E93]'
                     : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200',
                 ].join(' ')}
               >
@@ -63,7 +63,7 @@ export function SetupStepper({ steps, className = '', onStepClick }: SetupSteppe
                 step.status === 'completed'
                   ? 'text-green-600'
                   : step.status === 'current'
-                  ? 'text-primary font-normal'
+                  ? 'text-[#042E93] font-normal'
                   : 'text-slate-400',
               ].join(' ')}
             >

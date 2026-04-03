@@ -87,6 +87,10 @@ body {
   height: 100%;
 }
 
+.main-container{
+  padding: 20px;
+}
+
 /* Sidebar-only scrollbar to keep it visually aligned with the navy panel */
 .sidebar-scrollbar {
   scrollbar-width: thin;
