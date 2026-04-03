@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import Input from '../ui/Input';
 
@@ -22,6 +22,10 @@ const INITIAL_FORM_STATE: WarehouseFormData = {
   latestReturnTime: '20:00',
 };
 
+// Author: samir
+// Impact: Replaced unreliable native time input overlay with a custom TimePicker dropdown
+// Reason: Native <input type="time"> with opacity-0 overlay was inconsistent — clicks sometimes didn't trigger the picker
+
 function formatTime12h(time24: string): { hours: string; minutes: string; period: string } {
   const [h, m] = time24.split(':').map(Number);
   const period = h >= 12 ? 'PM' : 'AM';
@@ -31,6 +35,13 @@ function formatTime12h(time24: string): { hours: string; minutes: string; period
     minutes: String(m).padStart(2, '0'),
     period,
   };
+}
+
+function to24h(hours: number, minutes: number, period: string): string {
+  let h = hours;
+  if (period === 'AM' && h === 12) h = 0;
+  if (period === 'PM' && h !== 12) h += 12;
+  return `${String(h).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
 function ClockIcon() {
@@ -49,6 +60,155 @@ function InfoIcon() {
       <path d="M10 9V14" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" />
       <circle cx="10" cy="6.5" r="0.75" fill="#3B82F6" />
     </svg>
+  );
+}
+
+const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+interface TimePickerProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function TimePicker({ label, value, onChange }: TimePickerProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const parsed = formatTime12h(value);
+  const selectedHour = Number(parsed.hours);
+  const selectedMinute = Number(parsed.minutes);
+  const selectedPeriod = parsed.period;
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  function selectHour(h: number) {
+    onChange(to24h(h, selectedMinute, selectedPeriod));
+  }
+
+  function selectMinute(m: number) {
+    onChange(to24h(selectedHour, m, selectedPeriod));
+  }
+
+  function togglePeriod() {
+    const newPeriod = selectedPeriod === 'AM' ? 'PM' : 'AM';
+    onChange(to24h(selectedHour, selectedMinute, newPeriod));
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full" ref={containerRef}>
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={[
+          'flex items-center gap-2 rounded-full border bg-white px-4 h-12 transition-colors cursor-pointer w-full text-left',
+          open
+            ? 'border-[#1a2f6e] ring-2 ring-[#1a2f6e]/20'
+            : 'border-gray-200 hover:border-gray-300',
+        ].join(' ')}
+        aria-label={label}
+        aria-expanded={open}
+      >
+        <span className="flex-1 text-sm text-gray-900 flex items-center gap-1">
+          <span>{parsed.hours}</span>
+          <span className="text-gray-400">:</span>
+          <span>{parsed.minutes}</span>
+          <span className="ml-1 text-gray-500">{parsed.period}</span>
+        </span>
+        <span className="text-gray-400 shrink-0">
+          <ClockIcon />
+        </span>
+      </button>
+
+      {open && (
+        <div className="relative z-50">
+          <div className="absolute top-1 left-0 right-0 bg-white border border-gray-200 rounded-2xl shadow-lg p-4 min-w-[280px]">
+            {/* Current selected time display */}
+            <div className="flex items-center justify-center gap-1 mb-3 text-body-lg font-semibold text-gray-900">
+              <span>{parsed.hours}</span>
+              <span className="text-gray-400">:</span>
+              <span>{parsed.minutes}</span>
+              <button
+                type="button"
+                onClick={togglePeriod}
+                className="ml-2 px-2 py-0.5 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+              >
+                {parsed.period}
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              {/* Hours column */}
+              <div className="flex-1">
+                <p className="text-body-xs font-medium text-gray-400 mb-1.5 text-center uppercase tracking-wide">Hr</p>
+                <div className="grid grid-cols-4 gap-1">
+                  {HOURS.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => selectHour(h)}
+                      className={[
+                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                        h === selectedHour
+                          ? 'bg-[#1a2f6e] text-white'
+                          : 'text-gray-700 hover:bg-gray-100',
+                      ].join(' ')}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px bg-gray-200" />
+
+              {/* Minutes column */}
+              <div className="flex-1">
+                <p className="text-body-xs font-medium text-gray-400 mb-1.5 text-center uppercase tracking-wide">Min</p>
+                <div className="grid grid-cols-4 gap-1">
+                  {MINUTES.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => selectMinute(m)}
+                      className={[
+                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                        m === selectedMinute
+                          ? 'bg-[#1a2f6e] text-white'
+                          : 'text-gray-700 hover:bg-gray-100',
+                      ].join(' ')}
+                    >
+                      {String(m).padStart(2, '0')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Done button */}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="mt-3 w-full h-9 rounded-full bg-[#1a2f6e] text-white text-sm font-medium hover:bg-[#1a2f6e]/90 transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -76,9 +236,6 @@ export function WarehouseLocationForm({
     },
     [errors],
   );
-
-  const startTime = formatTime12h(formData.earliestStartTime);
-  const returnTime = formatTime12h(formData.latestReturnTime);
 
   return (
     <Card className={className}>
@@ -117,51 +274,16 @@ export function WarehouseLocationForm({
 
         {/* Time fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          {/* Earliest start time */}
-          <div className="flex flex-col gap-1.5 w-full">
-            <label className="text-sm font-medium text-gray-700">Earliest start time</label>
-            <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 h-12 focus-within:border-[#1a2f6e] focus-within:ring-2 focus-within:ring-[#1a2f6e]/20 transition-colors">
-              <span className="flex-1 text-sm text-gray-900 flex items-center gap-1">
-                <span>{startTime.hours}</span>
-                <span className="text-gray-400">:</span>
-                <span>{startTime.minutes}</span>
-                <span className="ml-1 text-gray-500">{startTime.period}</span>
-              </span>
-              <input
-                type="time"
-                value={formData.earliestStartTime}
-                onChange={(e) => updateField('earliestStartTime', e.target.value)}
-                className="absolute opacity-0 w-0 h-0"
-                tabIndex={-1}
-              />
-              <span className="text-gray-400 shrink-0">
-                <ClockIcon />
-              </span>
-            </div>
-          </div>
-
-          {/* Latest return time */}
-          <div className="flex flex-col gap-1.5 w-full">
-            <label className="text-sm font-medium text-gray-700">Latest return time</label>
-            <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 h-12 focus-within:border-[#1a2f6e] focus-within:ring-2 focus-within:ring-[#1a2f6e]/20 transition-colors">
-              <span className="flex-1 text-sm text-gray-900 flex items-center gap-1">
-                <span>{returnTime.hours}</span>
-                <span className="text-gray-400">:</span>
-                <span>{returnTime.minutes}</span>
-                <span className="ml-1 text-gray-500">{returnTime.period}</span>
-              </span>
-              <input
-                type="time"
-                value={formData.latestReturnTime}
-                onChange={(e) => updateField('latestReturnTime', e.target.value)}
-                className="absolute opacity-0 w-0 h-0"
-                tabIndex={-1}
-              />
-              <span className="text-gray-400 shrink-0">
-                <ClockIcon />
-              </span>
-            </div>
-          </div>
+          <TimePicker
+            label="Earliest start time"
+            value={formData.earliestStartTime}
+            onChange={(val) => updateField('earliestStartTime', val)}
+          />
+          <TimePicker
+            label="Latest return time"
+            value={formData.latestReturnTime}
+            onChange={(val) => updateField('latestReturnTime', val)}
+          />
         </div>
       </div>
     </Card>
