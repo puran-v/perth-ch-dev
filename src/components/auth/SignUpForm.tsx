@@ -9,16 +9,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
 import { toast } from "react-toastify";
-import { signIn } from "next-auth/react";
-
+import { useOAuth } from "@/hooks/useOAuth";
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's toast with OAuth Google button + real signup API call
-// Reason: combined email/password signup (with toast feedback) + social login (Google)
+// Reason: combined email/password signup (with toast feedback) + social login (Google/Microsoft)
 
 /**
  * Sign-up form with email/password and social login (Google).
- * Calls POST /api/auth/signup for password registration, signIn() for OAuth.
+ * Calls POST /api/auth/signup for password registration, form POST for OAuth.
  * Uses toast for success/error feedback.
  * On success redirects to verify-email page.
  *
@@ -28,12 +27,12 @@ import { signIn } from "next-auth/react";
  */
 export default function SignUpForm() {
   const router = useRouter();
+  const { loading: oauthLoading, error: oauthError, initiateOAuth } = useOAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<{
     fullName?: string;
     email?: string;
@@ -146,20 +145,6 @@ export default function SignUpForm() {
     }
   };
 
-  /**
-   * Initiates OAuth sign-in with the specified provider.
-   *
-   * @param provider - The OAuth provider ID ("google" or "microsoft-entra-id")
-   *
-   * @author Puran
-   * @created 2026-04-02
-   * @module Auth - Signup
-   */
-  const handleOAuth = (provider: string) => {
-    setOauthLoading(provider);
-    signIn(provider, { callbackUrl: "/api/auth/oauth/establish" });
-  };
-
   return (
     <div className="flex flex-col gap-16">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
@@ -170,6 +155,13 @@ export default function SignUpForm() {
             Create your account to get started
           </p>
         </div>
+
+        {/* OAuth hook error */}
+        {oauthError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+            <p className="text-sm text-red-700">{oauthError}</p>
+          </div>
+        )}
 
         {/* General error banner */}
         {errors.general && (
@@ -183,7 +175,7 @@ export default function SignUpForm() {
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("google")}
+            onClick={() => initiateOAuth("google")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -195,11 +187,10 @@ export default function SignUpForm() {
             {oauthLoading === "google" ? "Connecting..." : "Continue with Google"}
           </button>
 
-          {/* TODO: uncomment when Microsoft Entra ID is configured
           <button
             type="button"
             disabled={oauthLoading !== null || loading}
-            onClick={() => handleOAuth("microsoft-entra-id")}
+            onClick={() => initiateOAuth("microsoft-entra-id")}
             className="flex items-center justify-center gap-3 w-full h-12 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg width="20" height="20" viewBox="0 0 23 23">
@@ -210,7 +201,6 @@ export default function SignUpForm() {
             </svg>
             {oauthLoading === "microsoft-entra-id" ? "Connecting..." : "Continue with Microsoft"}
           </button>
-          */}
         </div>
 
         {/* Divider */}

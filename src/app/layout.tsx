@@ -5,7 +5,6 @@ import "./globals.css";
 import "react-toastify/dist/ReactToastify.css";
 import QueryProvider from "@/components/providers/QueryProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
-import AuthProvider from "@/components/providers/AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,12 +40,10 @@ export default function RootLayout({
     >
       {/* dev (jay): flex flex-col so full-height page layouts work without extra wrappers */}
       <body className="min-h-full flex flex-col">
-        <AuthProvider>
-          <QueryProvider>
-            {children}
-            <ToastProvider />
-          </QueryProvider>
-        </AuthProvider>
+        <QueryProvider>
+          {children}
+          <ToastProvider />
+        </QueryProvider>
       </body>
     </html>
   );

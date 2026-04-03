@@ -2,21 +2,24 @@
 
 /**
  * Client wrapper for AdminSidebar that fetches the current user
- * from GET /api/auth/me and handles logout.
+ * from GET /api/auth/me and handles logout with toast notifications.
  *
- * Replaces static defaultUser with real session data.
+ * Shows welcome toast on OAuth login success (via ?oauth=success query param).
+ * Shows goodbye toast on logout before redirecting to login page.
  *
  * @author Puran
  * @created 2026-04-02
  * @module Auth - Dashboard Layout
  */
 
-// Author: Puran
-// Impact: wraps AdminSidebar with dynamic user data + logout
-// Reason: sidebar profile was static; now shows real logged-in user
+// Old Author: Puran
+// New Author: Puran
+// Impact: added toast notifications for OAuth login success and logout
+// Reason: consistent user feedback matching email/password login toast pattern
 
-import { useEffect, useState, createContext, useContext } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, createContext, useRef, useContext } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "react-toastify";
 import AdminSidebar, {
   defaultNavSections,
   defaultComingSoon,
@@ -82,14 +85,15 @@ function formatRole(role: string): string {
 
 export default function AdminSidebarWrapper() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const { mobileOpen, setMobileOpen } = useMobileSidebar();
+  const toastShown = useRef(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
       .then((res) => {
         if (!res.ok) {
-          // Not authenticated — redirect to login
           router.push("/login");
           return null;
         }
@@ -98,15 +102,26 @@ export default function AdminSidebarWrapper() {
       .then((data) => {
         if (data?.success && data.data) {
           setCurrentUser(data.data);
+
+          // Show welcome toast for OAuth login (only once)
+          if (searchParams.get("oauth") === "success" && !toastShown.current) {
+            toastShown.current = true;
+            toast.success(`Welcome, ${data.data.fullName}!`);
+            // Clean up the query param without page reload
+            const url = new URL(window.location.href);
+            url.searchParams.delete("oauth");
+            window.history.replaceState({}, "", url.pathname);
+          }
         }
       })
       .catch(() => {
         router.push("/login");
       });
-  }, [router]);
+  }, [router, searchParams]);
 
   /**
-   * Calls POST /api/auth/logout, clears cookie, redirects to login.
+   * Logs out the user: calls POST /api/auth/logout, shows toast,
+   * clears cookie, and redirects to login page.
    *
    * @author Puran
    * @created 2026-04-02
@@ -118,10 +133,12 @@ export default function AdminSidebarWrapper() {
         method: "POST",
         credentials: "include",
       });
+      toast.success("You have been logged out successfully.");
     } catch {
-      // Even if the API call fails, redirect to login
+      toast.error("Logout failed. Please try again.");
     }
-    router.push("/login");
+    // Small delay so user sees the toast before redirect
+    setTimeout(() => router.push("/login"), 800);
   };
 
   const user = currentUser

@@ -68,8 +68,9 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Step 3: Load user — only select fields needed for auth check + response
+    // §5.3: filter out soft-deleted users
     const user = await db.user.findUnique({
-      where: { email },
+      where: { email, deletedAt: null },
       select: { id: true, fullName: true, email: true, role: true, passwordHash: true, isVerified: true },
     });
 

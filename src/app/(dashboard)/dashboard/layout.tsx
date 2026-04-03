@@ -5,6 +5,7 @@
 
 "use client";
 
+import { Suspense } from "react";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
@@ -44,7 +45,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <AdminSidebarWrapper />
+      {/* Suspense required — AdminSidebarWrapper uses useSearchParams for OAuth toast */}
+      <Suspense>
+        <AdminSidebarWrapper />
+      </Suspense>
       <main className="flex-1 overflow-y-auto content-scrollbar bg-[#F8FAFC]">
         <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
