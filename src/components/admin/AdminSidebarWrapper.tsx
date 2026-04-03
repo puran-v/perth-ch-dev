@@ -17,7 +17,7 @@
 // Impact: added toast notifications for OAuth login success and logout
 // Reason: consistent user feedback matching email/password login toast pattern
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, createContext, useRef, useContext } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import AdminSidebar, {
@@ -26,6 +26,23 @@ import AdminSidebar, {
   defaultTenant,
   defaultUser,
 } from "@/components/admin/AdminSidebar";
+
+// Author: samir
+// Impact: added MobileSidebarContext for layout hamburger toggle
+// Reason: layout needs to control sidebar open/close state on mobile
+interface MobileSidebarContextType {
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
+}
+
+const MobileSidebarContext = createContext<MobileSidebarContextType>({
+  mobileOpen: false,
+  setMobileOpen: () => {},
+});
+
+export function useMobileSidebar() {
+  return useContext(MobileSidebarContext);
+}
 
 interface CurrentUser {
   id: string;
@@ -70,6 +87,7 @@ export default function AdminSidebarWrapper() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const { mobileOpen, setMobileOpen } = useMobileSidebar();
   const toastShown = useRef(false);
 
   useEffect(() => {
@@ -138,6 +156,21 @@ export default function AdminSidebarWrapper() {
       user={user}
       navSections={defaultNavSections}
       comingSoon={defaultComingSoon}
+      mobileOpen={mobileOpen}
+      onMobileClose={() => setMobileOpen(false)}
     />
+  );
+}
+
+// Author: samir
+// Impact: provider component wraps layout to share mobile sidebar state
+// Reason: hamburger button in layout header needs to toggle sidebar open state
+export function MobileSidebarProvider({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <MobileSidebarContext.Provider value={{ mobileOpen, setMobileOpen }}>
+      {children}
+    </MobileSidebarContext.Provider>
   );
 }

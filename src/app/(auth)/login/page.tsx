@@ -10,7 +10,7 @@ export const metadata = {
 // dev (jay): two-column layout — branded left panel on md+, stacked logo+form on mobile
 export default function LoginPage() {
   return (
-    <main className=" min-h-screen py-5 flex flex-col md:flex-row">
+    <div className="main-container min-h-screen py-5 flex flex-col md:flex-row">
       {/* Left panel — hidden on mobile, shown md+ */}
       <div className="hidden rounded-4xl md:flex md:w-[46%] bg-[#1a2f6e] flex-col items-center justify-center gap-6 p-10">
         <Image
@@ -51,6 +51,6 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

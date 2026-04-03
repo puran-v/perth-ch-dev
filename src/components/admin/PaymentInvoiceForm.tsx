@@ -170,9 +170,12 @@ export function PaymentInvoiceForm({
           </div>
         </div>
 
+        {/* Author: samir */}
+        {/* Impact: toggle row wraps text and switch on small screens */}
+        {/* Reason: long label text pushed toggle off-screen on 320px */}
         {/* Toggle row */}
-        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-          <div>
+        <div className="flex items-start sm:items-center justify-between gap-3 py-2 border-b border-slate-100">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-slate-900">Auto-apply credit card surcharge</p>
             <p className="text-xs text-slate-500 mt-0.5">
               Adds a surcharge line item when customer pays by card. Label is customisable.

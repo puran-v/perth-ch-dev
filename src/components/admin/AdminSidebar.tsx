@@ -1,3 +1,7 @@
+// Author: samir
+// Impact: added mobile responsive drawer with overlay, hamburger toggle support
+// Reason: sidebar was fixed 280px with no mobile support; now collapses into a slide-out drawer on small screens
+
 "use client";
 
 import React from "react";
@@ -60,6 +64,8 @@ interface AdminSidebarProps {
   user: UserInfo;
   navSections: NavSection[];
   comingSoon: ComingSoonModule[];
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 // --- Sub-components ---
@@ -220,11 +226,26 @@ export default function AdminSidebar({
   user,
   navSections,
   comingSoon,
+  mobileOpen = false,
+  onMobileClose,
 }: AdminSidebarProps) {
   const pathname = usePathname();
 
-  return (
+  const sidebarContent = (
     <aside className="flex h-screen w-[280px] shrink-0 flex-col bg-[#042E93] overflow-hidden">
+      {/* Mobile close button */}
+      <div className="lg:hidden flex justify-end px-4 pt-4">
+        <button
+          onClick={onMobileClose}
+          className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Close sidebar"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
       <SidebarLogo />
       <TenantSwitcher tenant={tenant} />
 
@@ -256,6 +277,29 @@ export default function AdminSidebar({
       {/* User profile pinned to bottom */}
       <UserProfile user={user} />
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible */}
+      <div className="hidden lg:block">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile sidebar — slide-out drawer with overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <div className="relative z-50 animate-slide-in-left">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

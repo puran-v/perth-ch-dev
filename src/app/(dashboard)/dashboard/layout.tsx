@@ -1,16 +1,17 @@
 // Old Author: jay
-// New Author: Puran
-// Impact: replaced static AdminSidebar with dynamic AdminSidebarWrapper
-// Reason: sidebar now shows real user name/role from session + logout button
+// New Author: samir
+// Impact: made layout fully responsive with mobile hamburger menu and adaptive padding
+// Reason: layout was desktop-only with fixed padding; now works on 320px+ screens
+
+"use client";
 
 import { Suspense } from "react";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
+import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
+  const { setMobileOpen } = useMobileSidebar();
+
   function formatCurrentDate(): string {
     const now = new Date();
     const days = [
@@ -49,19 +50,29 @@ export default function AdminLayout({
         <AdminSidebarWrapper />
       </Suspense>
       <main className="flex-1 overflow-y-auto content-scrollbar bg-[#F8FAFC]">
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-8 py-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-slate-900">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Hamburger button — visible on mobile only */}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+              aria-label="Open menu"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <span className="text-sm font-bold text-slate-900 truncate">
               {title}
             </span>
-            <span className="w-px h-4 bg-slate-300" />
-            <span className="text-sm text-slate-500">
+            <span className="w-px h-4 bg-slate-300 hidden sm:block shrink-0" />
+            <span className="text-sm text-slate-500 hidden sm:block truncate">
               {formatCurrentDate()}
             </span>
           </div>
           {notifications !== undefined && (
             <button
-              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0"
               aria-label="Notifications"
             >
               <svg
@@ -85,10 +96,22 @@ export default function AdminLayout({
             </button>
           )}
         </div>
-        <div className="!max-w-[1512px] w-full mx-auto px-8 py-6">
+        <div className="!max-w-[1512px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           {children}
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <MobileSidebarProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </MobileSidebarProvider>
   );
 }
