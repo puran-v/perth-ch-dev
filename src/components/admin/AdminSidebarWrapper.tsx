@@ -13,12 +13,12 @@
  */
 
 // Old Author: Puran
-// New Author: Puran
-// Impact: added toast notifications for OAuth login success and logout
-// Reason: consistent user feedback matching email/password login toast pattern
+// New Author: samir
+// Impact: removed useSearchParams to eliminate Suspense bailout that caused sidebar flicker on hard refresh
+// Reason: useSearchParams forces the closest Suspense boundary to render its fallback (null) during hydration, making the 280px sidebar disappear/reappear and shift layout. Reading ?oauth=success from window.location.search inside the existing effect is equivalent and runs only on the client, so no Suspense is required.
 
 import { useEffect, useState, createContext, useRef, useContext } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import AdminSidebar, {
   defaultNavSections,
@@ -85,7 +85,6 @@ function formatRole(role: string): string {
 
 export default function AdminSidebarWrapper() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const { mobileOpen, setMobileOpen } = useMobileSidebar();
   const toastShown = useRef(false);
@@ -103,12 +102,14 @@ export default function AdminSidebarWrapper() {
         if (data?.success && data.data) {
           setCurrentUser(data.data);
 
-          // Show welcome toast for OAuth login (only once)
-          if (searchParams.get("oauth") === "success" && !toastShown.current) {
+          // Author: samir
+          // Impact: read ?oauth=success from window.location instead of useSearchParams
+          // Reason: useSearchParams would require a Suspense boundary around the whole sidebar, and that boundary rendered null on hydration, causing the sidebar to flicker on hard refresh. window.location is safe here because useEffect runs client-only.
+          const url = new URL(window.location.href);
+          if (url.searchParams.get("oauth") === "success" && !toastShown.current) {
             toastShown.current = true;
             toast.success(`Welcome, ${data.data.fullName}!`);
             // Clean up the query param without page reload
-            const url = new URL(window.location.href);
             url.searchParams.delete("oauth");
             window.history.replaceState({}, "", url.pathname);
           }
@@ -117,7 +118,7 @@ export default function AdminSidebarWrapper() {
       .catch(() => {
         router.push("/login");
       });
-  }, [router, searchParams]);
+  }, [router]);
 
   /**
    * Logs out the user: calls POST /api/auth/logout, shows toast,

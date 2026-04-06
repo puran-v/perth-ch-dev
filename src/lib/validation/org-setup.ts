@@ -1,0 +1,321 @@
+/**
+ * Zod validation schemas for the Org Setup module (Scope 1 — Module A).
+ *
+ * Shared between the client forms in src/components/admin/*Form.tsx and
+ * the org-setup API route, so error messages stay consistent on both
+ * sides of the wire (PROJECT_RULES.md §4.6 + §8.3).
+ *
+ * Lives under src/lib/validation (not src/server/lib/validation) because
+ * zod-only schemas are safe to import into client bundles and the client
+ * needs them for live form validation.
+ *
+ * @author samir
+ * @created 2026-04-06
+ * @module Module A - Org Setup
+ */
+
+import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Business Information
+// ---------------------------------------------------------------------------
+
+/**
+ * ABN (Australian Business Number) — 11 digits, commonly displayed with
+ * spaces every 2/3 digits. We strip whitespace before counting so both
+ * "12345678901" and "12 345 678 901" validate.
+ */
+const abnRegex = /^\d{11}$/;
+
+/** Validates Business Information form inputs. */
+export const businessInfoSchema = z.object({
+  businessName: z
+    .string()
+    .trim()
+    .min(1, "Business name is required")
+    .max(120, "Business name must be 120 characters or less"),
+  tradingName: z
+    .string()
+    .trim()
+    .max(120, "Trading name must be 120 characters or less")
+    .optional()
+    .or(z.literal("")),
+  abn: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\s+/g, ""))
+    .refine((v) => v === "" || abnRegex.test(v), "ABN must be 11 digits")
+    .optional()
+    .or(z.literal("")),
+  gstRegistered: z.enum(["yes", "no"], {
+    message: "Select whether the business is GST registered",
+  }),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "Business email is required")
+    .email("Invalid email format")
+    .max(254, "Email must be 254 characters or less"),
+  phone: z
+    .string()
+    .trim()
+    .max(32, "Phone must be 32 characters or less")
+    .optional()
+    .or(z.literal("")),
+  address: z
+    .string()
+    .trim()
+    .min(1, "Business address is required")
+    .max(255, "Address must be 255 characters or less"),
+  timezone: z
+    .string()
+    .trim()
+    .min(1, "Timezone is required"),
+  currency: z
+    .string()
+    .trim()
+    .length(3, "Currency must be a 3-letter code"),
+});
+
+// ---------------------------------------------------------------------------
+// Warehouse Location
+// ---------------------------------------------------------------------------
+
+/** 24h HH:MM format used by <input type="time"> and the custom TimePicker. */
+const timeHHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Author: samir
+// Impact: warehouse address is now a multi-select (array) instead of a free-text single address
+// Reason: tenants can operate out of multiple depots — the scheduling tool needs every warehouse ID to route runs from the right origin. For now the UI ships with 3 static options; when the Warehouse model is built we'll replace the array of strings with an array of warehouse IDs without changing this schema's shape.
+
+/** Validates Warehouse Location form inputs. */
+export const warehouseLocationSchema = z
+  .object({
+    warehouseAddresses: z
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1, "Warehouse address cannot be empty")
+          .max(255, "Address must be 255 characters or less"),
+      )
+      .min(1, "Select at least one warehouse address")
+      .max(20, "Too many warehouse addresses selected"),
+    earliestStartTime: z
+      .string()
+      .regex(timeHHMM, "Earliest start time must be in HH:MM format"),
+    latestReturnTime: z
+      .string()
+      .regex(timeHHMM, "Latest return time must be in HH:MM format"),
+  })
+  .refine(
+    (v) => v.earliestStartTime < v.latestReturnTime,
+    {
+      message: "Latest return time must be after earliest start time",
+      path: ["latestReturnTime"],
+    }
+  );
+
+// ---------------------------------------------------------------------------
+// Payment & Invoice Settings
+// ---------------------------------------------------------------------------
+
+const paymentTermsValues = [
+  "net-7",
+  "net-14",
+  "net-30",
+  "due-on-receipt",
+  "before-event",
+] as const;
+
+/**
+ * Parses a numeric string in the 0–100 range for percentage fields.
+ * Accepts "30", "30.5", etc. Rejects empty strings, negatives, >100.
+ */
+const percentString = z
+  .string()
+  .trim()
+  .refine((v) => v !== "", "Required")
+  .refine((v) => !Number.isNaN(Number(v)), "Must be a number")
+  .refine((v) => Number(v) >= 0 && Number(v) <= 100, "Must be between 0 and 100");
+
+/** Validates Payment & Invoice Settings form inputs. */
+export const paymentInvoiceSchema = z
+  .object({
+    defaultPaymentTerms: z.enum(paymentTermsValues, {
+      message: "Select a valid payment term",
+    }),
+    invoiceNumberPrefix: z
+      .string()
+      .trim()
+      .min(1, "Invoice number prefix is required")
+      .max(10, "Prefix must be 10 characters or less"),
+    invoiceStartingNumber: z
+      .string()
+      .trim()
+      .refine((v) => /^\d+$/.test(v), "Starting number must be digits only")
+      .refine((v) => Number(v) > 0, "Starting number must be greater than 0"),
+    defaultDepositPercent: percentString,
+    bankName: z
+      .string()
+      .trim()
+      .max(120, "Bank name must be 120 characters or less")
+      .optional()
+      .or(z.literal("")),
+    // BSB is a 6-digit Australian bank routing code, commonly shown as "000 000".
+    bsb: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\s+/g, ""))
+      .refine((v) => v === "" || /^\d{6}$/.test(v), "BSB must be 6 digits")
+      .optional()
+      .or(z.literal("")),
+    accountNumber: z
+      .string()
+      .trim()
+      .max(32, "Account number must be 32 characters or less")
+      .optional()
+      .or(z.literal("")),
+    accountName: z
+      .string()
+      .trim()
+      .max(120, "Account name must be 120 characters or less")
+      .optional()
+      .or(z.literal("")),
+    autoApplyCreditCardSurcharge: z.boolean(),
+    // When the toggle is on, surcharge % and label become required.
+    // Validated conditionally via .superRefine below.
+    surchargePercent: z.string().trim(),
+    labelOnInvoice: z.string().trim(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.autoApplyCreditCardSurcharge) {
+      // Surcharge percent — reuse the same 0..100 rules as deposit.
+      const pct = percentString.safeParse(val.surchargePercent);
+      if (!pct.success) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["surchargePercent"],
+          message: pct.error.issues[0]?.message ?? "Surcharge % is required",
+        });
+      }
+      if (val.labelOnInvoice.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["labelOnInvoice"],
+          message: "Label on invoice is required when surcharge is enabled",
+        });
+      } else if (val.labelOnInvoice.length > 120) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["labelOnInvoice"],
+          message: "Label must be 120 characters or less",
+        });
+      }
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// Composite schema + inferred types
+// ---------------------------------------------------------------------------
+
+/** Top-level payload accepted by the org-setup save endpoint in complete mode. */
+export const orgSetupSchema = z.object({
+  business: businessInfoSchema,
+  warehouse: warehouseLocationSchema,
+  payment: paymentInvoiceSchema,
+});
+
+// Author: samir
+// Impact: loose per-section schemas so drafts can carry whatever the user has typed so far
+// Reason: the Save Draft button needs to round-trip partial/invalid data through the API
+// without losing any keystrokes. We still cap size per field with a max(...) so a malicious
+// client can't stuff megabytes into a JSON column. Unknown keys are stripped by Zod.
+const draftStringField = z
+  .string()
+  .max(2048, "Field is too long")
+  .optional();
+
+const draftBooleanField = z.boolean().optional();
+
+/** Draft-mode business block — every field optional and loosely typed. */
+const draftBusinessSchema = z
+  .object({
+    businessName: draftStringField,
+    tradingName: draftStringField,
+    abn: draftStringField,
+    gstRegistered: draftStringField,
+    email: draftStringField,
+    phone: draftStringField,
+    address: draftStringField,
+    timezone: draftStringField,
+    currency: draftStringField,
+  })
+  .partial();
+
+/** Draft-mode warehouse block — every field optional, addresses is a loose array. */
+const draftWarehouseSchema = z
+  .object({
+    warehouseAddresses: z
+      .array(z.string().max(255))
+      .max(20, "Too many warehouse addresses selected")
+      .optional(),
+    earliestStartTime: draftStringField,
+    latestReturnTime: draftStringField,
+  })
+  .partial();
+
+/** Draft-mode payment block — every field optional, boolean toggle preserved. */
+const draftPaymentSchema = z
+  .object({
+    defaultPaymentTerms: draftStringField,
+    invoiceNumberPrefix: draftStringField,
+    invoiceStartingNumber: draftStringField,
+    defaultDepositPercent: draftStringField,
+    bankName: draftStringField,
+    bsb: draftStringField,
+    accountNumber: draftStringField,
+    accountName: draftStringField,
+    autoApplyCreditCardSurcharge: draftBooleanField,
+    surchargePercent: draftStringField,
+    labelOnInvoice: draftStringField,
+  })
+  .partial();
+
+/**
+ * Request body accepted by PUT /api/org-setup.
+ *
+ * Discriminated on `mode`:
+ * - `draft`    → each section is optional + loosely typed. Safe for the
+ *                Save Draft button, which should never block on validation.
+ * - `complete` → each section runs the full strict schema (refines +
+ *                superRefine). Only accepted when the user clicks Save &
+ *                Continue and the client has already run the same schemas.
+ *
+ * Mirrors PROJECT_RULES.md §4.6 (validate every request) and §8.3 (client
+ * + server validation).
+ */
+export const orgSetupSaveSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("draft"),
+    business: draftBusinessSchema.optional(),
+    warehouse: draftWarehouseSchema.optional(),
+    payment: draftPaymentSchema.optional(),
+  }),
+  z.object({
+    mode: z.literal("complete"),
+    business: businessInfoSchema,
+    warehouse: warehouseLocationSchema,
+    payment: paymentInvoiceSchema,
+  }),
+]);
+
+export type BusinessInfoInput = z.infer<typeof businessInfoSchema>;
+export type WarehouseLocationInput = z.infer<typeof warehouseLocationSchema>;
+export type PaymentInvoiceInput = z.infer<typeof paymentInvoiceSchema>;
+export type OrgSetupInput = z.infer<typeof orgSetupSchema>;
+export type OrgSetupSaveInput = z.infer<typeof orgSetupSaveSchema>;
+export type OrgSetupDraftBusiness = z.infer<typeof draftBusinessSchema>;
+export type OrgSetupDraftWarehouse = z.infer<typeof draftWarehouseSchema>;
+export type OrgSetupDraftPayment = z.infer<typeof draftPaymentSchema>;
