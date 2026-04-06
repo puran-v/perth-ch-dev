@@ -211,14 +211,99 @@ export const paymentInvoiceSchema = z
 // Composite schema + inferred types
 // ---------------------------------------------------------------------------
 
-/** Top-level payload accepted by the org-setup save endpoint. */
+/** Top-level payload accepted by the org-setup save endpoint in complete mode. */
 export const orgSetupSchema = z.object({
   business: businessInfoSchema,
   warehouse: warehouseLocationSchema,
   payment: paymentInvoiceSchema,
 });
 
+// Author: samir
+// Impact: loose per-section schemas so drafts can carry whatever the user has typed so far
+// Reason: the Save Draft button needs to round-trip partial/invalid data through the API
+// without losing any keystrokes. We still cap size per field with a max(...) so a malicious
+// client can't stuff megabytes into a JSON column. Unknown keys are stripped by Zod.
+const draftStringField = z
+  .string()
+  .max(2048, "Field is too long")
+  .optional();
+
+const draftBooleanField = z.boolean().optional();
+
+/** Draft-mode business block — every field optional and loosely typed. */
+const draftBusinessSchema = z
+  .object({
+    businessName: draftStringField,
+    tradingName: draftStringField,
+    abn: draftStringField,
+    gstRegistered: draftStringField,
+    email: draftStringField,
+    phone: draftStringField,
+    address: draftStringField,
+    timezone: draftStringField,
+    currency: draftStringField,
+  })
+  .partial();
+
+/** Draft-mode warehouse block — every field optional. */
+const draftWarehouseSchema = z
+  .object({
+    warehouseAddress: draftStringField,
+    earliestStartTime: draftStringField,
+    latestReturnTime: draftStringField,
+  })
+  .partial();
+
+/** Draft-mode payment block — every field optional, boolean toggle preserved. */
+const draftPaymentSchema = z
+  .object({
+    defaultPaymentTerms: draftStringField,
+    invoiceNumberPrefix: draftStringField,
+    invoiceStartingNumber: draftStringField,
+    defaultDepositPercent: draftStringField,
+    bankName: draftStringField,
+    bsb: draftStringField,
+    accountNumber: draftStringField,
+    accountName: draftStringField,
+    autoApplyCreditCardSurcharge: draftBooleanField,
+    surchargePercent: draftStringField,
+    labelOnInvoice: draftStringField,
+  })
+  .partial();
+
+/**
+ * Request body accepted by PUT /api/org-setup.
+ *
+ * Discriminated on `mode`:
+ * - `draft`    → each section is optional + loosely typed. Safe for the
+ *                Save Draft button, which should never block on validation.
+ * - `complete` → each section runs the full strict schema (refines +
+ *                superRefine). Only accepted when the user clicks Save &
+ *                Continue and the client has already run the same schemas.
+ *
+ * Mirrors PROJECT_RULES.md §4.6 (validate every request) and §8.3 (client
+ * + server validation).
+ */
+export const orgSetupSaveSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("draft"),
+    business: draftBusinessSchema.optional(),
+    warehouse: draftWarehouseSchema.optional(),
+    payment: draftPaymentSchema.optional(),
+  }),
+  z.object({
+    mode: z.literal("complete"),
+    business: businessInfoSchema,
+    warehouse: warehouseLocationSchema,
+    payment: paymentInvoiceSchema,
+  }),
+]);
+
 export type BusinessInfoInput = z.infer<typeof businessInfoSchema>;
 export type WarehouseLocationInput = z.infer<typeof warehouseLocationSchema>;
 export type PaymentInvoiceInput = z.infer<typeof paymentInvoiceSchema>;
 export type OrgSetupInput = z.infer<typeof orgSetupSchema>;
+export type OrgSetupSaveInput = z.infer<typeof orgSetupSaveSchema>;
+export type OrgSetupDraftBusiness = z.infer<typeof draftBusinessSchema>;
+export type OrgSetupDraftWarehouse = z.infer<typeof draftWarehouseSchema>;
+export type OrgSetupDraftPayment = z.infer<typeof draftPaymentSchema>;

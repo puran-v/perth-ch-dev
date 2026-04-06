@@ -19,6 +19,16 @@ enum UserRole {
   DRIVER
 }
 
+// Author: samir
+// Impact: tracks whether Module A setup has been saved as draft or committed
+// Reason: the org-setup UI needs to persist partial progress (draft) and a
+// final validated state (complete) so the Save Draft / Save & Continue
+// buttons can round-trip through the API without losing work
+enum OrgSetupStatus {
+  DRAFT
+  COMPLETE
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -28,8 +38,32 @@ model Organization {
 
   users                 User[]
   emailVerificationOtps EmailVerificationOtp[]
+  orgSetup              OrgSetup?
 
   @@map("organizations")
+}
+
+// Author: samir
+// Impact: 1:1 companion table for Organization that holds Module A setup state
+// Reason: business/warehouse/payment sections are stored as JSON so drafts can
+// hold partial/invalid data while the COMPLETE status guarantees the payload
+// has passed the strict Zod schema on the server. Using JSON keeps drafts
+// simple; the app layer is responsible for re-validating before use.
+model OrgSetup {
+  id        String         @id @default(cuid())
+  orgId     String         @unique
+  status    OrgSetupStatus @default(DRAFT)
+  business  Json?
+  warehouse Json?
+  payment   Json?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  deletedAt DateTime?
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+  @@map("org_setups")
 }
 
 model User {
