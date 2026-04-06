@@ -46,7 +46,7 @@ export async function createSession(userId: string) {
  * Expired sessions are soft-deleted (deletedAt set) per §5.3.
  *
  * @param token - The session token from the cookie
- * @returns Session with user data, or null if invalid/expired
+ * @returns Session with user data (id, fullName, email, role, isVerified, orgId), or null if invalid/expired
  *
  * @author Puran
  * @created 2026-04-02
@@ -57,7 +57,7 @@ export async function validateSession(token: string) {
     where: { token, deletedAt: null },
     include: {
       user: {
-        select: { id: true, fullName: true, email: true, role: true, isVerified: true },
+        select: { id: true, fullName: true, email: true, role: true, isVerified: true, orgId: true },
       },
     },
   });
