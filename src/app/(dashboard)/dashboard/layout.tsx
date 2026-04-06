@@ -1,11 +1,10 @@
 // Old Author: jay
 // New Author: samir
-// Impact: made layout fully responsive with mobile hamburger menu and adaptive padding
-// Reason: layout was desktop-only with fixed padding; now works on 320px+ screens
+// Impact: made layout fully responsive with mobile hamburger menu, adaptive padding, and full-width content area
+// Reason: layout was desktop-only with fixed padding and capped at 1512px; now works on 320px+ screens and stretches on ultra-wide displays
 
 "use client";
 
-import { Suspense } from "react";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
@@ -45,10 +44,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Suspense required — AdminSidebarWrapper uses useSearchParams for OAuth toast */}
-      <Suspense>
-        <AdminSidebarWrapper />
-      </Suspense>
+      {/* Author: samir */}
+      {/* Impact: Suspense removed — AdminSidebarWrapper no longer uses useSearchParams */}
+      {/* Reason: Suspense fallback was rendering null on hydration and flashing the sidebar on every hard refresh */}
+      <AdminSidebarWrapper />
       <main className="flex-1 overflow-y-auto content-scrollbar bg-[#F8FAFC]">
         <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -96,7 +95,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           )}
         </div>
-        <div className="!max-w-[1512px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Author: samir */}
+        {/* Impact: full-width content area with responsive horizontal padding that scales up on ultra-wide screens */}
+        {/* Reason: removed 1512px cap so the dashboard fills the viewport; added 2xl breakpoint padding to keep content from feeling stretched on 2560px+ displays */}
+        <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 py-4 sm:py-6 2xl:py-8">
           {children}
         </div>
       </main>

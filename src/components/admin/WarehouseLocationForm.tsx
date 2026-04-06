@@ -1,13 +1,35 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+// Old Author: samir
+// New Author: samir
+// Impact: added forwardRef handle + Zod validation so the parent page can trigger validation
+// Reason: warehouse form needed real validation wired into the org-setup Save & Continue flow
+
+import {
+  forwardRef,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useImperativeHandle,
+} from 'react';
 import { Card } from '../ui/Card';
 import Input from '../ui/Input';
+import {
+  warehouseLocationSchema,
+  type WarehouseLocationInput,
+} from '@/lib/validation/org-setup';
 
 export interface WarehouseFormData {
   warehouseAddress: string;
   earliestStartTime: string;
   latestReturnTime: string;
+}
+
+/** Imperative handle exposed to the parent via ref. */
+export interface WarehouseLocationFormHandle {
+  validate: () => WarehouseLocationInput | null;
+  getFormData: () => WarehouseFormData;
 }
 
 interface WarehouseLocationFormProps {
@@ -16,6 +38,8 @@ interface WarehouseLocationFormProps {
   className?: string;
 }
 
+// Sensible business defaults: a full 6am–8pm working window.
+// Address is empty — must be filled in by the user.
 const INITIAL_FORM_STATE: WarehouseFormData = {
   warehouseAddress: '',
   earliestStartTime: '06:00',
@@ -70,9 +94,10 @@ interface TimePickerProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  error?: string;
 }
 
-function TimePicker({ label, value, onChange }: TimePickerProps) {
+function TimePicker({ label, value, onChange, error }: TimePickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const parsed = formatTime12h(value);
@@ -113,7 +138,9 @@ function TimePicker({ label, value, onChange }: TimePickerProps) {
         onClick={() => setOpen((prev) => !prev)}
         className={[
           'flex items-center gap-2 rounded-full border bg-white px-4 h-12 transition-colors cursor-pointer w-full text-left',
-          open
+          error
+            ? 'border-red-400 focus-within:ring-2 focus-within:ring-red-300'
+            : open
             ? 'border-[#1a2f6e] ring-2 ring-[#1a2f6e]/20'
             : 'border-gray-200 hover:border-gray-300',
         ].join(' ')}
@@ -208,15 +235,18 @@ function TimePicker({ label, value, onChange }: TimePickerProps) {
           </div>
         </div>
       )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }
 
-export function WarehouseLocationForm({
-  initialData,
-  saved = false,
-  className = '',
-}: WarehouseLocationFormProps) {
+export const WarehouseLocationForm = forwardRef<
+  WarehouseLocationFormHandle,
+  WarehouseLocationFormProps
+>(function WarehouseLocationForm(
+  { initialData, saved = false, className = '' },
+  ref,
+) {
   const [formData, setFormData] = useState<WarehouseFormData>({
     ...INITIAL_FORM_STATE,
     ...initialData,
@@ -226,15 +256,48 @@ export function WarehouseLocationForm({
   const updateField = useCallback(
     (field: keyof WarehouseFormData, value: string) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
-      if (errors[field]) {
-        setErrors((prev) => {
-          const next = { ...prev };
-          delete next[field];
-          return next;
-        });
-      }
+      setErrors((prev) => {
+        if (!prev[field]) return prev;
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     },
-    [errors],
+    [],
+  );
+
+  /**
+   * Zod safeParse + surface field errors. Returns parsed data or null.
+   *
+   * @author samir
+   * @created 2026-04-06
+   * @module Module A - Org Setup
+   */
+  const runValidation = useCallback((): WarehouseLocationInput | null => {
+    const result = warehouseLocationSchema.safeParse(formData);
+    if (result.success) {
+      setErrors({});
+      return result.data;
+    }
+
+    const fieldErrors: Partial<Record<keyof WarehouseFormData, string>> = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof WarehouseFormData | undefined;
+      if (key && !fieldErrors[key]) {
+        fieldErrors[key] = issue.message;
+      }
+    }
+    setErrors(fieldErrors);
+    return null;
+  }, [formData]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      validate: runValidation,
+      getFormData: () => formData,
+    }),
+    [runValidation, formData],
   );
 
   return (
@@ -265,27 +328,33 @@ export function WarehouseLocationForm({
       <div className="space-y-5">
         {/* Warehouse address */}
         <Input
-          label="Warehouse address*"
+          label="Warehouse address *"
           value={formData.warehouseAddress}
           onChange={(e) => updateField('warehouseAddress', e.target.value)}
-          placeholder="Perth, Western Australia"
+          placeholder="Street, suburb, state"
           error={errors.warehouseAddress}
+          autoComplete="street-address"
         />
 
+        {/* Author: samir */}
+        {/* Impact: time picker grid breathes on ultra-wide screens via larger xl/2xl column gaps */}
+        {/* Reason: layout is now full-width; prevents pickers from feeling stranded at opposite edges */}
         {/* Time fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 xl:gap-x-8 2xl:gap-x-12">
           <TimePicker
             label="Earliest start time"
             value={formData.earliestStartTime}
             onChange={(val) => updateField('earliestStartTime', val)}
+            error={errors.earliestStartTime}
           />
           <TimePicker
             label="Latest return time"
             value={formData.latestReturnTime}
             onChange={(val) => updateField('latestReturnTime', val)}
+            error={errors.latestReturnTime}
           />
         </div>
       </div>
     </Card>
   );
-}
+});
