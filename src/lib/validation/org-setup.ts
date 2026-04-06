@@ -85,14 +85,23 @@ export const businessInfoSchema = z.object({
 /** 24h HH:MM format used by <input type="time"> and the custom TimePicker. */
 const timeHHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// Author: samir
+// Impact: warehouse address is now a multi-select (array) instead of a free-text single address
+// Reason: tenants can operate out of multiple depots — the scheduling tool needs every warehouse ID to route runs from the right origin. For now the UI ships with 3 static options; when the Warehouse model is built we'll replace the array of strings with an array of warehouse IDs without changing this schema's shape.
+
 /** Validates Warehouse Location form inputs. */
 export const warehouseLocationSchema = z
   .object({
-    warehouseAddress: z
-      .string()
-      .trim()
-      .min(1, "Warehouse address is required")
-      .max(255, "Address must be 255 characters or less"),
+    warehouseAddresses: z
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1, "Warehouse address cannot be empty")
+          .max(255, "Address must be 255 characters or less"),
+      )
+      .min(1, "Select at least one warehouse address")
+      .max(20, "Too many warehouse addresses selected"),
     earliestStartTime: z
       .string()
       .regex(timeHHMM, "Earliest start time must be in HH:MM format"),
@@ -245,10 +254,13 @@ const draftBusinessSchema = z
   })
   .partial();
 
-/** Draft-mode warehouse block — every field optional. */
+/** Draft-mode warehouse block — every field optional, addresses is a loose array. */
 const draftWarehouseSchema = z
   .object({
-    warehouseAddress: draftStringField,
+    warehouseAddresses: z
+      .array(z.string().max(255))
+      .max(20, "Too many warehouse addresses selected")
+      .optional(),
     earliestStartTime: draftStringField,
     latestReturnTime: draftStringField,
   })

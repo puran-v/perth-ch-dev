@@ -94,7 +94,7 @@ Or `data: null` (GET only) when no setup has been saved yet.
 See the Zod schemas in `src/lib/validation/org-setup.ts`:
 
 - `businessInfoSchema` — `businessName*`, `tradingName`, `abn` (11 digits when present), `gstRegistered` (`yes`|`no`), `email*`, `phone`, `address*`, `timezone*`, `currency*`
-- `warehouseLocationSchema` — `warehouseAddress*`, `earliestStartTime*`, `latestReturnTime*` (both `HH:MM`, end > start refine)
+- `warehouseLocationSchema` — `warehouseAddresses*` (string array, at least one selected, max 20), `earliestStartTime*`, `latestReturnTime*` (both `HH:MM`, end > start refine). Until the `Warehouse` model is built, the form offers 3 static depot options (`perth-cbd`, `fremantle`, `joondalup`); the stored shape is already an array of identifiers so swapping in real data later is a drop-in change.
 - `paymentInvoiceSchema` — `defaultPaymentTerms*`, `invoiceNumberPrefix*`, `invoiceStartingNumber*` (positive integer), `defaultDepositPercent*` (0–100), bank fields (optional), `autoApplyCreditCardSurcharge` toggle, conditional `surchargePercent` + `labelOnInvoice` when toggle is on
 - `orgSetupSaveSchema` — discriminated union used by the API (`mode: draft` loose, `mode: complete` strict)
 
