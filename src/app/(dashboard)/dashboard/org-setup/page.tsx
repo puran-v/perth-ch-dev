@@ -29,7 +29,7 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { StepperStep } from '@/components/ui/SetupStepper';
 import { useApiQuery, useApiMutation } from '@/hooks';
-import { CURRENT_USER_QUERY_KEY } from '@/hooks/useCurrentUser';
+import { CURRENT_USER_QUERY_KEY, useCurrentUser } from '@/hooks/useCurrentUser';
 // Author: Puran
 // Impact: derive Team-step completion from live member + invitation lists
 // Reason: the stepper green tick on the org-setup progress card should
@@ -194,6 +194,16 @@ export default function OrgSetupPage() {
   const businessRef = useRef<BusinessInfoFormHandle>(null);
   const warehouseRef = useRef<WarehouseLocationFormHandle>(null);
   const paymentRef = useRef<PaymentInvoiceFormHandle>(null);
+
+  // Author: Puran
+  // Impact: read currentUser to know whether the user already has an org —
+  //         drives the Save Draft visibility gate below
+  // Reason: drafts can only persist once an org exists. Showing the button
+  //         before that would either (a) silently create an org from a half-
+  //         filled form (the bug we're fixing) or (b) hit the new server
+  //         guard and toast an error. Hiding it is the only honest UX.
+  const { data: currentUser } = useCurrentUser();
+  const hasOrg = !!currentUser?.orgId;
 
   // Load any previously saved setup so the forms can hydrate with it.
   // `data` is `null` when the user has no org yet or hasn't saved before.
@@ -483,17 +493,51 @@ export default function OrgSetupPage() {
       {/* Author: samir */}
       {/* Impact: buttons stack vertically on mobile, row on sm+; disabled while mutation is in flight */}
       {/* Reason: two large buttons side-by-side overflowed on 320px screens and users could double-submit */}
+      {/* First-run helper — explains why Save Draft isn't here yet */}
+      {!hasOrg && (
+        <Card className="bg-blue-50 border-blue-100">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                Finish this step to create your organization
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Fill in Business Information, Warehouse Location, and Payment
+                &amp; Invoice Settings, then click <strong>Save &amp; Continue</strong>.
+                Drafts and the rest of the modules unlock once your organization
+                is created.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Author: Puran */}
+      {/* Impact: first-time admins (no org yet) only see "Save & Continue".
+          Save Draft appears once the org has been created via the first
+          successful Save & Continue. */}
+      {/* Reason: drafts have nowhere to live without an org row, and we
+          refuse to create the org from a partial draft — that was creating
+          ghost tenants when users abandoned the form mid-fill. */}
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pb-6 sm:pb-8">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handleSaveDraft}
-          loading={isSaving && saveMutation.variables?.mode === 'draft'}
-          disabled={isSaving && saveMutation.variables?.mode !== 'draft'}
-        >
-          Save Draft
-        </Button>
+        {hasOrg && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handleSaveDraft}
+            loading={isSaving && saveMutation.variables?.mode === 'draft'}
+            disabled={isSaving && saveMutation.variables?.mode !== 'draft'}
+          >
+            Save Draft
+          </Button>
+        )}
         <Button
           variant="primary"
           size="lg"

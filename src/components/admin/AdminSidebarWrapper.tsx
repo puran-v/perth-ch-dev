@@ -91,6 +91,7 @@ export default function AdminSidebarWrapper() {
     data: currentUser,
     error: currentUserError,
     isFetching: isFetchingCurrentUser,
+    isLoading: isLoadingCurrentUser,
   } = useCurrentUser();
   const { mobileOpen, setMobileOpen } = useMobileSidebar();
   const toastShown = useRef(false);
@@ -192,6 +193,18 @@ export default function AdminSidebarWrapper() {
     E: false,
   };
 
+  // Author: Puran
+  // Impact: lock the entire sidebar (except Org Setup) for admins who haven't
+  //         completed the Org Info step yet
+  // Reason: every tenant-scoped page 500s without an orgId. Locking the nav
+  //         instead of hiding it makes the gating obvious — the user sees the
+  //         full set of upcoming features greyed out behind the one action
+  //         they need to take, instead of a tiny "Setup" group with one link.
+  //         Skip while the query is in flight so the locked state doesn't
+  //         flash on every reload before /api/auth/me resolves.
+  const lockMode =
+    !!currentUser && !currentUser.orgId && !isLoadingCurrentUser;
+
   return (
     <AdminSidebar
       tenant={defaultTenant}
@@ -200,6 +213,8 @@ export default function AdminSidebarWrapper() {
       comingSoon={defaultComingSoon}
       isAdmin={isAdmin}
       modules={modules}
+      isLoading={isLoadingCurrentUser || (!currentUser && !currentUserError)}
+      lockMode={lockMode}
       mobileOpen={mobileOpen}
       onMobileClose={() => setMobileOpen(false)}
     />

@@ -237,6 +237,26 @@ export async function PUT(req: Request): Promise<Response> {
 
     const payload = parsed.data;
 
+    // Old Author: samir
+    // New Author: Puran
+    // Impact: drafts are now refused for users without an org. Only mode:
+    //         "complete" (the Save & Continue path) is allowed to create
+    //         the Organization on first save.
+    // Reason: clicking "Save Draft" used to silently create an org from
+    //         whatever partial business name happened to be typed, which
+    //         meant a half-filled form could spawn a real tenant row,
+    //         lock the user into it, and bypass the validation gate that
+    //         protects every other page in the app. Production-ready flow:
+    //         the Org Info step must be *completed* (full Zod pass) to
+    //         create the org; until then drafts have nowhere to live.
+    if (payload.mode === "draft" && !authCtx.orgId) {
+      return error(
+        "ORG_REQUIRED",
+        "Complete the Org Info step to create your organization before saving drafts.",
+        409,
+      );
+    }
+
     // Step 4: Resolve (or create) the organization this setup belongs to.
     // We grab a best-effort org name from whatever business data the
     // request carries; drafts may not include one yet.

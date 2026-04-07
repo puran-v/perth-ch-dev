@@ -293,20 +293,27 @@ export default function RolesPage() {
  * Small "System" pill shown next to platform-seeded role names so admins
  * can tell at a glance that the row is locked. Tooltip explains why.
  */
+// Old Author: Puran
+// New Author: Puran
+// Impact: bumped contrast on the System badge — darker slate fill, white
+//         text + icon, bolder stroke and a slightly larger glyph
+// Reason: previous slate-100/600 combo washed out against the white card
+//         background, especially the padlock — admins couldn't tell at a
+//         glance that the row was locked
 function SystemRoleBadge() {
   return (
     <span
       title="System role — locked from editing"
-      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+      className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm"
     >
       {/* Heroicons-style padlock. 24×24 viewBox, no transform hacks. */}
       <svg
         aria-hidden="true"
-        className="h-3 w-3"
+        className="h-3.5 w-3.5"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={2.5}
       >
         <path
           strokeLinecap="round"
