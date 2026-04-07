@@ -31,10 +31,14 @@ import type { StepperStep } from '@/components/ui/SetupStepper';
 import { useApiQuery, useApiMutation } from '@/hooks';
 import { CURRENT_USER_QUERY_KEY } from '@/hooks/useCurrentUser';
 import { ApiError } from '@/lib/api-client';
-import type {
-  BusinessInfoInput,
-  WarehouseLocationInput,
-  PaymentInvoiceInput,
+import {
+  businessInfoSchema,
+  warehouseLocationSchema,
+  paymentInvoiceSchema,
+  brandingSchema,
+  type BusinessInfoInput,
+  type WarehouseLocationInput,
+  type PaymentInvoiceInput,
 } from '@/lib/validation/org-setup';
 // Author: samir
 // Impact: page reuses the exported OrgSetupResponse type from the API route
@@ -64,32 +68,57 @@ const NEXT_STEP_HREF = '/dashboard/branding';
 // ---------------------------------------------------------------------------
 
 /**
- * Builds the stepper steps for the Module A progress card. The first
- * step's status reflects whether the user has already completed org
- * setup; everything after it is rendered as pending for now (those
- * modules aren't wired up yet).
+ * Builds the stepper steps for the Module A progress card.
+ *
+ * Both org-info and branding completion are tracked independently so
+ * the user can return to /dashboard/org-setup after saving branding
+ * and see Branding rendered as ✓ completed instead of "current".
+ *
+ * Old Author: samir
+ * New Author: samir
+ * Impact: stepper now reflects branding completion as well as org-info
+ * Reason: when the user finishes the branding step and clicks "Save & Continue", the org-setup stepper kept showing Branding as the current step. This function now takes a separate brandingComplete flag (computed from the same React Query payload) so the tick/current/pending states stay accurate after either page saves.
  *
  * @author samir
  * @created 2026-04-06
  * @module Module A - Org Setup
  */
-function buildSetupSteps(isComplete: boolean): StepperStep[] {
+function buildSetupSteps(
+  orgInfoComplete: boolean,
+  brandingComplete: boolean,
+): StepperStep[] {
+  // The Org Info step is "current" when nothing is complete yet, then
+  // "completed" once business info is saved. Branding follows the same
+  // pattern but only after org info is done.
+  const orgInfoStatus: StepperStep['status'] = orgInfoComplete
+    ? 'completed'
+    : 'current';
+  const brandingStatus: StepperStep['status'] = brandingComplete
+    ? 'completed'
+    : orgInfoComplete
+    ? 'current'
+    : 'pending';
+  // Team becomes current once branding is done; otherwise it waits.
+  const teamStatus: StepperStep['status'] = brandingComplete
+    ? 'current'
+    : 'pending';
+
   return [
     {
       id: 'org-info',
       label: 'Org Info',
-      status: isComplete ? 'completed' : 'current',
+      status: orgInfoStatus,
       stepNumber: 1,
       href: '/dashboard/org-setup',
     },
     {
       id: 'branding',
       label: 'Branding',
-      status: isComplete ? 'current' : 'pending',
+      status: brandingStatus,
       stepNumber: 2,
       href: '/dashboard/branding',
     },
-    { id: 'team', label: 'Team', status: 'pending', stepNumber: 3, href: '/dashboard/team' },
+    { id: 'team', label: 'Team', status: teamStatus, stepNumber: 3, href: '/dashboard/team' },
     { id: 'products', label: 'Products', status: 'pending', stepNumber: 4, href: '/dashboard/products' },
     { id: 'bundles', label: 'Bundles', status: 'pending', stepNumber: 5, href: '/dashboard/bundles' },
     { id: 'rules', label: 'Rules', status: 'pending', stepNumber: 6, href: '/dashboard/pricing' },
@@ -178,14 +207,38 @@ export default function OrgSetupPage() {
 
   const isSaving = saveMutation.isPending;
 
+  // Old Author: samir
+  // New Author: samir
+  // Impact: Org Info completion = ALL three sections (business + warehouse + payment) pass strict Zod validation
+  // Reason: the org-setup page actually owns three forms, not one. Earlier checks only verified business fields, which would tick the step even if a user had skipped warehouse + payment. Using the existing Zod schemas as the source of truth means the stepper can never drift from the form validation rules.
+  const orgInfoComplete = useMemo(() => {
+    if (!data) return false;
+    return (
+      businessInfoSchema.safeParse(data.business).success &&
+      warehouseLocationSchema.safeParse(data.warehouse).success &&
+      paymentInvoiceSchema.safeParse(data.payment).success
+    );
+  }, [data]);
+
+  // Author: samir
+  // Impact: branding completion = the saved branding block passes the strict Zod schema
+  // Reason: same source-of-truth approach as orgInfoComplete — running the schema avoids hand-rolled "did the user fill these fields" checks that can fall out of sync with the real validation.
+  const brandingComplete = useMemo(() => {
+    if (!data) return false;
+    return brandingSchema.safeParse(data.branding).success;
+  }, [data]);
+
   // Only render forms once the initial load has resolved. This avoids
   // the "flash of empty form" race when initialData arrives late — the
   // forms capture initialData into local state on mount and never re-read
   // it, so the parent must gate rendering on the query result.
   const setupSteps = useMemo(
-    () => buildSetupSteps(data?.status === 'COMPLETE'),
-    [data?.status],
+    () => buildSetupSteps(orgInfoComplete, brandingComplete),
+    [orgInfoComplete, brandingComplete],
   );
+
+  const completedCount =
+    (orgInfoComplete ? 1 : 0) + (brandingComplete ? 1 : 0);
 
   /**
    * Collects current values from every mounted form. Safe to call during
@@ -356,10 +409,13 @@ export default function OrgSetupPage() {
         showDateBar
       />
 
+      {/* Author: samir */}
+      {/* Impact: completedCount now reflects org-info AND branding completion, not just the legacy status flag */}
+      {/* Reason: previously the count was hard-coded to 1 if status === COMPLETE which couldn't progress past Org Info — once a user completes branding the header should read "2 / 6 complete" to match the stepper ticks. */}
       {/* Setup Progress */}
       <SetupProgressCard
         title="Module A setup progress"
-        completedCount={data?.status === 'COMPLETE' ? 1 : 0}
+        completedCount={completedCount}
         totalCount={6}
         steps={setupSteps}
       />

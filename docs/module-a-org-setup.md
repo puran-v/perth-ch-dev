@@ -2,7 +2,7 @@
 
 ## Overview
 
-First-time onboarding for a new tenant. Captures the business information, warehouse location, and payment/invoice settings that every downstream module (quoting, invoicing, scheduling, warehouse) depends on. Backs the `/dashboard/org-setup` page and its Save Draft + Save & Continue buttons.
+First-time onboarding for a new tenant. Captures the business information, warehouse location, payment/invoice settings, and branding that every downstream module (quoting, invoicing, scheduling, warehouse) depends on. Spans two pages today — `/dashboard/org-setup` (business + warehouse + payment) and `/dashboard/branding` (logo + brand colours + email sender identity) — and both persist through the single shared `/api/org-setup` endpoint.
 
 ## Flow
 
@@ -31,7 +31,7 @@ First-time onboarding for a new tenant. Captures the business information, wareh
 
 ### Request body — `PUT /api/org-setup`
 
-Discriminated union on `mode`:
+Discriminated union on `mode`. Every section is **optional** in both modes because Module A is split across multiple pages that each own a subset of sections (org-setup → business + warehouse + payment, branding → branding, future → team/products/bundles/rules). The server requires at least one section to be present in complete mode.
 
 ```ts
 // Draft — loose, partial, safe to save partially-filled work
@@ -40,14 +40,17 @@ Discriminated union on `mode`:
   business?:  Partial<BusinessFormData>,
   warehouse?: Partial<WarehouseFormData>,
   payment?:   Partial<PaymentFormData>,
+  branding?:  Partial<BrandingFormData>,
 }
 
 // Complete — strict, runs full Zod schemas from @/lib/validation/org-setup
+// At least one section must be present.
 {
   mode: "complete",
-  business:  BusinessInfoInput,
-  warehouse: WarehouseLocationInput,
-  payment:   PaymentInvoiceInput,
+  business?:  BusinessInfoInput,
+  warehouse?: WarehouseLocationInput,
+  payment?:   PaymentInvoiceInput,
+  branding?:  BrandingInput,
 }
 ```
 
@@ -61,6 +64,7 @@ Discriminated union on `mode`:
     "business":  { ... },
     "warehouse": { ... },
     "payment":   { ... },
+    "branding":  { ... },
     "updatedAt": "2026-04-06T12:34:56.000Z"
   }
 }
@@ -87,7 +91,7 @@ Or `data: null` (GET only) when no setup has been saved yet.
 
 - **`organizations`** — created on first save if the user had no org. `name` kept in sync with `business.businessName` on every write.
 - **`users`** — `orgId` backfilled during first save. Done inside a transaction with the `organizations` insert.
-- **`org_setups`** — 1:1 with `organizations`, keyed by `orgId` (unique). Stores `business`, `warehouse`, `payment` as JSONB columns plus a `status` enum (`DRAFT` | `COMPLETE`). Follows the standard soft-delete + timestamps convention.
+- **`org_setups`** — 1:1 with `organizations`, keyed by `orgId` (unique). Stores `business`, `warehouse`, `payment`, and `branding` as JSONB columns plus a `status` enum (`DRAFT` | `COMPLETE`). Follows the standard soft-delete + timestamps convention. The `branding` column was added in migration `20260406130405_add_org_setup_branding`.
 
 ## Parameters / Inputs
 
@@ -96,7 +100,8 @@ See the Zod schemas in `src/lib/validation/org-setup.ts`:
 - `businessInfoSchema` — `businessName*`, `tradingName`, `abn` (11 digits when present), `gstRegistered` (`yes`|`no`), `email*`, `phone`, `address*`, `timezone*`, `currency*`
 - `warehouseLocationSchema` — `warehouseAddresses*` (string array, at least one selected, max 20), `earliestStartTime*`, `latestReturnTime*` (both `HH:MM`, end > start refine). Until the `Warehouse` model is built, the form offers 3 static depot options (`perth-cbd`, `fremantle`, `joondalup`); the stored shape is already an array of identifiers so swapping in real data later is a drop-in change.
 - `paymentInvoiceSchema` — `defaultPaymentTerms*`, `invoiceNumberPrefix*`, `invoiceStartingNumber*` (positive integer), `defaultDepositPercent*` (0–100), bank fields (optional), `autoApplyCreditCardSurcharge` toggle, conditional `surchargePercent` + `labelOnInvoice` when toggle is on
-- `orgSetupSaveSchema` — discriminated union used by the API (`mode: draft` loose, `mode: complete` strict)
+- `brandingSchema` — `logoDataUrl` (optional base64 data URL, ~2 MB cap, placeholder until real object storage), `primaryColor*` and `accentColor*` (hex codes — 3 or 6 digits), `fromName*`, `fromEmail*` (must be a valid email), `replyTo` (optional email). The logo is stored inline as a base64 data URL today; when an S3 / R2 upload endpoint lands it will return a URL string that the form stores in the same column — no schema change needed.
+- `orgSetupSaveSchema` — discriminated union used by the API (`mode: draft` loose, `mode: complete` strict with at-least-one-section refine)
 
 ## Business Rules
 
@@ -129,14 +134,23 @@ None in this feature. Module A AI (sales-ai) lives elsewhere and does not read o
 
 ## Client Integration
 
+Both pages share the same query key (`['org-setup']`), the same `OrgSetupResponse` shape, the same `ApiError → toast` error path, and the same `useApiQuery + useApiMutation` + skeleton + retry UX.
+
 - `src/app/(dashboard)/dashboard/org-setup/page.tsx`
-  - `useApiQuery(['org-setup'], '/api/org-setup')` loads the saved setup.
-  - `useApiMutation('/api/org-setup', 'put', { invalidateKeys: [['org-setup']] })` powers both buttons.
-  - Forms are gated behind the loading state — the page renders a skeleton while the initial GET is in flight so `initialData` is always present when forms mount (the form components read `initialData` only once via `useState`).
+  - Owns the business, warehouse, and payment sections.
+  - Save Draft hits `mode: "draft"`, Save & Continue hits `mode: "complete"` and then `router.push('/dashboard/branding')`.
   - Each form exposes a `validate()` / `getFormData()` handle via `forwardRef` + `useImperativeHandle`. Save Draft calls `getFormData()`; Save & Continue calls `validate()` and aborts if any section returns `null`.
+
+- `src/app/(dashboard)/dashboard/branding/page.tsx`
+  - Owns the branding section only.
+  - **Save** hits `mode: "draft"` (no navigation), **Next: Products** hits `mode: "complete"` and then `router.push('/dashboard/products')`.
+  - The stepper card shows Org Info as completed when the previous page has been filled in (derived from the server response — `data.business` present or `status === 'COMPLETE'`), and Branding as current / completed based on whether the required branding fields are populated.
+  - `BrandingForm` exposes the same `validate()` / `getFormData()` handle shape as the other Module A forms so the page keeps a consistent submit flow.
 
 ## Future Work
 
 - Add a server-side audit log entry for every `OrgSetup` write (creation / mode transition). Currently only `logger.info` is emitted.
 - Replace the `Organization.name` denormalization with a computed view once the business-info JSON shape stabilises.
 - Expose a `GET /api/org-setup/history` endpoint that reads soft-deleted rows for compliance.
+- **Branding — logo upload**: today the logo is stored inline as a base64 data URL in the `branding` JSONB column (capped at 2 MB). Swap this for a presigned-upload flow (S3 / R2) so the column only holds a URL string.
+- **Branding — DNS verification**: the "Verify DNS" button is currently a stub that toasts "coming soon". Wire it to an internal API that resolves SPF / DKIM / DMARC records for the `fromEmail` domain and persists the result in `branding.dnsStatus`.
