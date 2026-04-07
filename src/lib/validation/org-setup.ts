@@ -118,6 +118,75 @@ export const warehouseLocationSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Branding
+// ---------------------------------------------------------------------------
+
+// Author: samir
+// Impact: validates the Branding card (logo, brand colours, email sender identity)
+// Reason: Module A step 2 — these schemas are shared by the /dashboard/branding form and the /api/org-setup route, so any rule change lands in one place
+
+/** Accepts either 3-digit or 6-digit hex codes with a leading `#`. */
+const hexColorRegex = /^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
+/**
+ * Upper bound for the logo data URL (placeholder until real object
+ * storage is wired up). A 2 MB PNG becomes ~2.67 MB after base64
+ * expansion, and we give it a small buffer for the `data:image/...;base64,`
+ * prefix — hence the 2.75 MB cap.
+ */
+const LOGO_DATA_URL_MAX_BYTES = 2_750_000;
+
+/** Matches `data:image/<subtype>;base64,<payload>` exactly. */
+const dataImageUrlRegex = /^data:image\/(png|jpe?g|svg\+xml|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+
+/** Validates Branding form inputs. */
+export const brandingSchema = z.object({
+  // Logo is optional because most customers will skip it on first save
+  // and fill it in later. An empty string is accepted so the client can
+  // "clear" the logo by sending "".
+  logoDataUrl: z
+    .string()
+    .max(LOGO_DATA_URL_MAX_BYTES, "Logo must be 2 MB or less")
+    .refine(
+      (v) => v === "" || dataImageUrlRegex.test(v),
+      "Logo must be an image file (PNG, JPG, SVG, WebP, or GIF)",
+    )
+    .optional()
+    .or(z.literal("")),
+  primaryColor: z
+    .string()
+    .trim()
+    .regex(hexColorRegex, "Primary colour must be a valid hex code (e.g. #1A3C6E)"),
+  accentColor: z
+    .string()
+    .trim()
+    .regex(hexColorRegex, "Accent colour must be a valid hex code (e.g. #2563EB)"),
+  fromName: z
+    .string()
+    .trim()
+    .min(1, "From name is required")
+    .max(120, "From name must be 120 characters or less"),
+  fromEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "From email is required")
+    .email("Invalid from-email format")
+    .max(254, "Email must be 254 characters or less"),
+  replyTo: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254, "Email must be 254 characters or less")
+    .refine(
+      (v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      "Reply-to must be a valid email address",
+    )
+    .optional()
+    .or(z.literal("")),
+});
+
+// ---------------------------------------------------------------------------
 // Payment & Invoice Settings
 // ---------------------------------------------------------------------------
 
@@ -220,12 +289,22 @@ export const paymentInvoiceSchema = z
 // Composite schema + inferred types
 // ---------------------------------------------------------------------------
 
-/** Top-level payload accepted by the org-setup save endpoint in complete mode. */
-export const orgSetupSchema = z.object({
-  business: businessInfoSchema,
-  warehouse: warehouseLocationSchema,
-  payment: paymentInvoiceSchema,
-});
+// Author: samir
+// Impact: every section in the composite schema is now optional
+// Reason: Module A is split across multiple pages (org-setup, branding, …) and each page only submits the sections it owns. The strict per-section schemas still run when a section IS present — optionality just means "this page didn't touch that section". A top-level refine guarantees at least one section is present so we never accept an empty save.
+
+/** Top-level strict schema for any Module A section payload. */
+export const orgSetupSchema = z
+  .object({
+    business: businessInfoSchema.optional(),
+    warehouse: warehouseLocationSchema.optional(),
+    payment: paymentInvoiceSchema.optional(),
+    branding: brandingSchema.optional(),
+  })
+  .refine(
+    (v) => Boolean(v.business || v.warehouse || v.payment || v.branding),
+    { message: "At least one section must be provided" },
+  );
 
 // Author: samir
 // Impact: loose per-section schemas so drafts can carry whatever the user has typed so far
@@ -284,14 +363,35 @@ const draftPaymentSchema = z
   .partial();
 
 /**
+ * Draft-mode branding block — every field optional. The logo data URL
+ * is still size-capped so a malicious client can't DoS the JSON column
+ * with a 50 MB payload during draft saves.
+ */
+const draftBrandingSchema = z
+  .object({
+    logoDataUrl: z
+      .string()
+      .max(LOGO_DATA_URL_MAX_BYTES, "Logo must be 2 MB or less")
+      .optional(),
+    primaryColor: draftStringField,
+    accentColor: draftStringField,
+    fromName: draftStringField,
+    fromEmail: draftStringField,
+    replyTo: draftStringField,
+  })
+  .partial();
+
+/**
  * Request body accepted by PUT /api/org-setup.
  *
  * Discriminated on `mode`:
  * - `draft`    → each section is optional + loosely typed. Safe for the
  *                Save Draft button, which should never block on validation.
- * - `complete` → each section runs the full strict schema (refines +
- *                superRefine). Only accepted when the user clicks Save &
- *                Continue and the client has already run the same schemas.
+ * - `complete` → each section is still optional (because Module A is split
+ *                across multiple pages that each own a subset of sections)
+ *                but the ones that ARE present run the strict schemas
+ *                (refines + superRefine). The top-level refine guarantees
+ *                at least one section is actually being submitted.
  *
  * Mirrors PROJECT_RULES.md §4.6 (validate every request) and §8.3 (client
  * + server validation).
@@ -302,20 +402,29 @@ export const orgSetupSaveSchema = z.discriminatedUnion("mode", [
     business: draftBusinessSchema.optional(),
     warehouse: draftWarehouseSchema.optional(),
     payment: draftPaymentSchema.optional(),
+    branding: draftBrandingSchema.optional(),
   }),
-  z.object({
-    mode: z.literal("complete"),
-    business: businessInfoSchema,
-    warehouse: warehouseLocationSchema,
-    payment: paymentInvoiceSchema,
-  }),
+  z
+    .object({
+      mode: z.literal("complete"),
+      business: businessInfoSchema.optional(),
+      warehouse: warehouseLocationSchema.optional(),
+      payment: paymentInvoiceSchema.optional(),
+      branding: brandingSchema.optional(),
+    })
+    .refine(
+      (v) => Boolean(v.business || v.warehouse || v.payment || v.branding),
+      { message: "At least one section must be provided" },
+    ),
 ]);
 
 export type BusinessInfoInput = z.infer<typeof businessInfoSchema>;
 export type WarehouseLocationInput = z.infer<typeof warehouseLocationSchema>;
 export type PaymentInvoiceInput = z.infer<typeof paymentInvoiceSchema>;
+export type BrandingInput = z.infer<typeof brandingSchema>;
 export type OrgSetupInput = z.infer<typeof orgSetupSchema>;
 export type OrgSetupSaveInput = z.infer<typeof orgSetupSaveSchema>;
 export type OrgSetupDraftBusiness = z.infer<typeof draftBusinessSchema>;
 export type OrgSetupDraftWarehouse = z.infer<typeof draftWarehouseSchema>;
 export type OrgSetupDraftPayment = z.infer<typeof draftPaymentSchema>;
+export type OrgSetupDraftBranding = z.infer<typeof draftBrandingSchema>;

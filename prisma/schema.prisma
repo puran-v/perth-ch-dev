@@ -43,12 +43,18 @@ model Organization {
   @@map("organizations")
 }
 
-// Author: samir
+// Old Author: samir
+// New Author: samir
 // Impact: 1:1 companion table for Organization that holds Module A setup state
-// Reason: business/warehouse/payment sections are stored as JSON so drafts can
+// Reason: business/warehouse/payment/branding sections are stored as JSON so drafts can
 // hold partial/invalid data while the COMPLETE status guarantees the payload
 // has passed the strict Zod schema on the server. Using JSON keeps drafts
 // simple; the app layer is responsible for re-validating before use.
+//
+// `branding` was added in migration 20260406110000_add_org_setup_branding —
+// it holds logo data URL (placeholder until real object storage), brand
+// colours (primary + accent hex), and email sender identity (from name /
+// from email / reply-to + DNS status stub).
 model OrgSetup {
   id        String         @id @default(cuid())
   orgId     String         @unique
@@ -56,6 +62,7 @@ model OrgSetup {
   business  Json?
   warehouse Json?
   payment   Json?
+  branding  Json?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   deletedAt DateTime?
