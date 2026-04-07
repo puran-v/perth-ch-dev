@@ -17,12 +17,15 @@
 // Impact: new dashboard page for OrganizationRole CRUD
 // Reason: roles must exist before invites can reference them
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { toast } from "react-toastify";
 import Button from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRoles } from "@/hooks/team/useRoles";
 import { RoleFormModal } from "@/components/team/RoleFormModal";
 import { DeleteRoleModal } from "@/components/team/DeleteRoleModal";
+import { ApiError } from "@/lib/api-client";
 import type { OrganizationRole } from "@/types/team";
 
 /** Module flag → short badge label, used in the list row */
@@ -47,6 +50,21 @@ export default function RolesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<OrganizationRole | null>(null);
   const [deletingRole, setDeletingRole] = useState<OrganizationRole | null>(null);
+
+  // Author: Puran
+  // Impact: same ORG_REQUIRED handling pattern used by UsersTab + PendingTab
+  // Reason: a fresh signup who deep-links to /dashboard/team/roles before
+  //         saving org-setup hits requireOrg → 403 ORG_REQUIRED. Render a
+  //         friendly setup prompt + toast instead of dumping the raw 403
+  //         message into a red error card.
+  const orgRequired =
+    error instanceof ApiError && error.code === "ORG_REQUIRED";
+
+  useEffect(() => {
+    if (orgRequired) {
+      toast.info("Finish your organization setup before creating roles.");
+    }
+  }, [orgRequired]);
 
   /** Opens the form modal in create mode */
   const handleCreate = () => {
@@ -88,6 +106,22 @@ export default function RolesPage() {
       {/* Body */}
       {isLoading ? (
         <RolesSkeleton />
+      ) : orgRequired ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <p className="text-sm font-semibold text-amber-900">
+            Set up your organization first
+          </p>
+          <p className="mt-1 text-sm text-amber-800">
+            You need to complete the Org Setup step before you can create or
+            manage roles.
+          </p>
+          <Link
+            href="/dashboard/org-setup"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-800"
+          >
+            Go to Org Setup
+          </Link>
+        </div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-6">
           <p className="text-sm font-medium text-red-800">

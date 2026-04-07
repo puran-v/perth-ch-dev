@@ -137,15 +137,31 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    // Step 4: Reject if a user already exists with this email. Email is
-    // globally unique so we can't attach in V1; the FE should route them
-    // to login with a "already have an account?" hint.
+    // Step 4: Look up any existing user with this email. Email is globally
+    // unique, so we have to handle three cases:
+    //   (a) no row at all          → create a fresh user (default path)
+    //   (b) row exists, NOT soft-deleted → block, the email is in active use
+    //   (c) row exists, soft-deleted     → restore it onto the inviting org +
+    //                                      role with the new password. The
+    //                                      old user identity (id, history,
+    //                                      audit trail) is preserved.
+    //
+    // Old Author: Puran
+    // New Author: Puran
+    // Impact: soft-deleted users can now accept a fresh invite (case c)
+    // Reason: previously case (b) and (c) were collapsed into a single
+    //         EMAIL_ALREADY_REGISTERED block, so an admin who removed a
+    //         teammate and then re-invited them was hitting a dead end.
+    //         The restore path keeps the original user.id (so audit logs
+    //         and any historical references stay valid) but flips
+    //         deletedAt back to null and re-attaches to the org/role from
+    //         the invitation.
     const existingUser = await db.user.findUnique({
       where: { email: invitation.email },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
 
-    if (existingUser) {
+    if (existingUser && existingUser.deletedAt === null) {
       logger.info("Accept invitation blocked — email already registered", {
         ...ctx,
         invitationId: invitation.id,
@@ -156,6 +172,9 @@ export async function POST(req: Request): Promise<Response> {
         409
       );
     }
+
+    const restoringSoftDeleted =
+      existingUser !== null && existingUser.deletedAt !== null;
 
     // Resolve identity fields. The invitation is the source of truth: if
     // the admin entered firstName/lastName/jobTitle when inviting, we
@@ -175,41 +194,66 @@ export async function POST(req: Request): Promise<Response> {
         ? `${invitation.firstName} ${invitation.lastName}`
         : fullName;
 
-    // Step 5: Create user + consume invitation atomically. Invited users land
-    // as STAFF (system role); the org-level OrganizationRole drives module
-    // access. Admins can promote to MANAGER/ADMIN later via the edit page.
-    // We mark isVerified: true because the invitation email itself proves
-    // ownership of the address — no second OTP round-trip needed.
+    // Step 5: Create OR restore the user, then consume the invitation
+    // atomically. Invited users land as STAFF (system role); the org-level
+    // OrganizationRole drives module access. Admins can promote to
+    // MANAGER/ADMIN later via the edit page. We mark isVerified: true
+    // because the invitation email itself proves ownership of the address —
+    // no second OTP round-trip needed.
+    //
+    // Restore path: when the existing user is soft-deleted we re-use the
+    // same row (preserving its id and history) and overwrite identity +
+    // password + org/role fields. We do NOT touch the historical
+    // createdAt — that stays as the original signup date.
+    const userSelect = {
+      id: true,
+      fullName: true,
+      firstName: true,
+      lastName: true,
+      jobTitle: true,
+      email: true,
+      role: true,
+      isVerified: true,
+      orgId: true,
+      organizationRoleId: true,
+      createdAt: true,
+    } as const;
+
     let createdUser;
     try {
       const [newUser] = await db.$transaction([
-        db.user.create({
-          data: {
-            fullName: composedFullName,
-            firstName,
-            lastName,
-            jobTitle,
-            email: invitation.email,
-            passwordHash,
-            role: "STAFF",
-            isVerified: true,
-            orgId: invitation.orgId,
-            organizationRoleId: invitation.organizationRoleId,
-          },
-          select: {
-            id: true,
-            fullName: true,
-            firstName: true,
-            lastName: true,
-            jobTitle: true,
-            email: true,
-            role: true,
-            isVerified: true,
-            orgId: true,
-            organizationRoleId: true,
-            createdAt: true,
-          },
-        }),
+        restoringSoftDeleted
+          ? db.user.update({
+              where: { email: invitation.email },
+              data: {
+                fullName: composedFullName,
+                firstName,
+                lastName,
+                jobTitle,
+                passwordHash,
+                role: "STAFF",
+                isVerified: true,
+                orgId: invitation.orgId,
+                organizationRoleId: invitation.organizationRoleId,
+                deletedAt: null,
+              },
+              select: userSelect,
+            })
+          : db.user.create({
+              data: {
+                fullName: composedFullName,
+                firstName,
+                lastName,
+                jobTitle,
+                email: invitation.email,
+                passwordHash,
+                role: "STAFF",
+                isVerified: true,
+                orgId: invitation.orgId,
+                organizationRoleId: invitation.organizationRoleId,
+              },
+              select: userSelect,
+            }),
         db.invitation.update({
           where: { id: invitation.id },
           data: { consumedAt: new Date() },
@@ -249,6 +293,7 @@ export async function POST(req: Request): Promise<Response> {
       userId: createdUser.id,
       orgId: createdUser.orgId,
       invitationId: invitation.id,
+      restored: restoringSoftDeleted,
     });
 
     return new Response(
