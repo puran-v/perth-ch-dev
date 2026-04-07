@@ -180,7 +180,19 @@ export async function POST(req: Request): Promise<Response> {
     });
     const pendingEmails = new Set(existingPending.map((e) => e.email));
 
-    // Also skip emails that already belong to active users in this org
+    // Also skip emails that already belong to active users in this org.
+    //
+    // Old Author: Puran
+    // New Author: Puran
+    // Impact: query is intentionally org-scoped + deletedAt: null so that
+    //         soft-deleted users (whose row still holds the globally-unique
+    //         email) can be re-invited. The accept-invitation endpoint
+    //         restores the soft-deleted row in place rather than creating
+    //         a new one, which is why we let the invitation through here.
+    // Reason: client wants admins to be able to remove a teammate and then
+    //         re-invite them later — the previous behaviour collapsed both
+    //         "active member" and "soft-deleted" into the same skip path
+    //         and there was no way out.
     const existingUsers = await db.user.findMany({
       where: {
         orgId: permResult.orgId,

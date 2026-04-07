@@ -17,6 +17,13 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { StepperStep } from '@/components/ui/SetupStepper';
 import { useApiQuery, useApiMutation } from '@/hooks';
+// Author: Puran
+// Impact: branding page also derives Team-step completion live so the
+//         stepper tick stays in sync no matter which page the user visits
+// Reason: see org-setup page rationale — single derivation logic shared
+//         across both pages prevents the green tick from going stale.
+import { useMembers } from '@/hooks/team/useMembers';
+import { useInvitations } from '@/hooks/team/useInvitations';
 import { ApiError } from '@/lib/api-client';
 import {
   brandingSchema,
@@ -68,6 +75,7 @@ const NEXT_STEP_HREF = '/dashboard/products';
 function buildSetupSteps(
   orgInfoComplete: boolean,
   brandingComplete: boolean,
+  teamComplete: boolean,
 ): StepperStep[] {
   return [
     {
@@ -87,7 +95,15 @@ function buildSetupSteps(
     {
       id: 'team',
       label: 'Team',
-      status: brandingComplete ? 'current' : 'pending',
+      // Old Author: samir
+      // New Author: Puran
+      // Impact: 'completed' when the org has at least one teammate
+      // Reason: keep the stepper tick consistent with the team page gate
+      status: teamComplete
+        ? 'completed'
+        : brandingComplete
+        ? 'current'
+        : 'pending',
       stepNumber: 3,
       href: '/dashboard/team',
     },
@@ -209,12 +225,28 @@ export default function BrandingPage() {
     );
   }, [data]);
 
+  // Author: Puran
+  // Impact: derive Team-step completion from members + invitations
+  // Reason: keep the branding stepper tick in sync with the team-page gate.
+  const { data: members } = useMembers();
+  const { data: invitations } = useInvitations();
+  const teamComplete = useMemo(() => {
+    const memberCount = members?.length ?? 0;
+    const pendingInviteCount = (invitations ?? []).filter(
+      (i) => !i.consumedAt && !i.revokedAt,
+    ).length;
+    return memberCount + pendingInviteCount > 0;
+  }, [members, invitations]);
+
   const setupSteps = useMemo(
-    () => buildSetupSteps(orgInfoComplete, brandingComplete),
-    [orgInfoComplete, brandingComplete],
+    () => buildSetupSteps(orgInfoComplete, brandingComplete, teamComplete),
+    [orgInfoComplete, brandingComplete, teamComplete],
   );
 
-  const completedCount = (orgInfoComplete ? 1 : 0) + (brandingComplete ? 1 : 0);
+  const completedCount =
+    (orgInfoComplete ? 1 : 0) +
+    (brandingComplete ? 1 : 0) +
+    (teamComplete ? 1 : 0);
 
   /**
    * Maps an ApiError from the backend into a user-facing toast.

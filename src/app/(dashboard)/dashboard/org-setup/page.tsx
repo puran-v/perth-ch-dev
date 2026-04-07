@@ -30,6 +30,14 @@ import { Card } from '@/components/ui/Card';
 import type { StepperStep } from '@/components/ui/SetupStepper';
 import { useApiQuery, useApiMutation } from '@/hooks';
 import { CURRENT_USER_QUERY_KEY } from '@/hooks/useCurrentUser';
+// Author: Puran
+// Impact: derive Team-step completion from live member + invitation lists
+// Reason: the stepper green tick on the org-setup progress card should
+//         flip on as soon as the user has at least one teammate (member
+//         or pending invite, excluding the founder), matching the same
+//         "hasTeammate" gate the team page enforces on Save & Continue
+import { useMembers } from '@/hooks/team/useMembers';
+import { useInvitations } from '@/hooks/team/useInvitations';
 import { ApiError } from '@/lib/api-client';
 import {
   businessInfoSchema,
@@ -86,6 +94,7 @@ const NEXT_STEP_HREF = '/dashboard/branding';
 function buildSetupSteps(
   orgInfoComplete: boolean,
   brandingComplete: boolean,
+  teamComplete: boolean,
 ): StepperStep[] {
   // The Org Info step is "current" when nothing is complete yet, then
   // "completed" once business info is saved. Branding follows the same
@@ -98,8 +107,17 @@ function buildSetupSteps(
     : orgInfoComplete
     ? 'current'
     : 'pending';
-  // Team becomes current once branding is done; otherwise it waits.
-  const teamStatus: StepperStep['status'] = brandingComplete
+  // Old Author: samir
+  // New Author: Puran
+  // Impact: Team step now flips to 'completed' once the org has at least one
+  //         teammate, instead of staying stuck on 'current' forever.
+  // Reason: client wanted the green tick to appear after Save & Continue on
+  //         the team page. Completion is derived from useMembers +
+  //         useInvitations (no extra DB column needed) so any path that adds
+  //         a teammate keeps the stepper in sync.
+  const teamStatus: StepperStep['status'] = teamComplete
+    ? 'completed'
+    : brandingComplete
     ? 'current'
     : 'pending';
 
@@ -228,17 +246,38 @@ export default function OrgSetupPage() {
     return brandingSchema.safeParse(data.branding).success;
   }, [data]);
 
+  // Author: Puran
+  // Impact: pull live members + invitations so the Team step can flip to
+  //         "completed" when there's at least one teammate. React Query
+  //         dedupes these queries against the team page, so calling them
+  //         here is free if the user has already visited /dashboard/team.
+  // Reason: matches the same gate the team page uses on Save & Continue —
+  //         single source of truth for "has the user added anyone yet?".
+  //         Soft-deleted users are excluded by the API; consumed/revoked
+  //         invites are excluded by useInvitations.
+  const { data: members } = useMembers();
+  const { data: invitations } = useInvitations();
+  const teamComplete = useMemo(() => {
+    const memberCount = members?.length ?? 0;
+    const pendingInviteCount = (invitations ?? []).filter(
+      (i) => !i.consumedAt && !i.revokedAt,
+    ).length;
+    return memberCount + pendingInviteCount > 0;
+  }, [members, invitations]);
+
   // Only render forms once the initial load has resolved. This avoids
   // the "flash of empty form" race when initialData arrives late — the
   // forms capture initialData into local state on mount and never re-read
   // it, so the parent must gate rendering on the query result.
   const setupSteps = useMemo(
-    () => buildSetupSteps(orgInfoComplete, brandingComplete),
-    [orgInfoComplete, brandingComplete],
+    () => buildSetupSteps(orgInfoComplete, brandingComplete, teamComplete),
+    [orgInfoComplete, brandingComplete, teamComplete],
   );
 
   const completedCount =
-    (orgInfoComplete ? 1 : 0) + (brandingComplete ? 1 : 0);
+    (orgInfoComplete ? 1 : 0) +
+    (brandingComplete ? 1 : 0) +
+    (teamComplete ? 1 : 0);
 
   /**
    * Collects current values from every mounted form. Safe to call during

@@ -184,11 +184,20 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
         const alreadyPending = result.skipped
           .filter((s) => s.reason === "ALREADY_PENDING")
           .map((s) => s.email);
+        // Old Author: Puran
+        // New Author: Puran
+        // Impact: ALREADY_MEMBER is now a hard error toast, not info
+        // Reason: client wanted a clear "this email is already in use"
+        //         message instead of the soft "ℹ" pill that was easy to
+        //         miss. ALREADY_PENDING stays as info because resending
+        //         is a valid follow-up action via the Pending tab.
         if (alreadyMember.length) {
-          toast.info(
-            `Already a member: ${alreadyMember.slice(0, 3).join(", ")}${
-              alreadyMember.length > 3 ? "…" : ""
-            }`
+          const list = alreadyMember.slice(0, 3).join(", ");
+          const more = alreadyMember.length > 3 ? "…" : "";
+          toast.error(
+            alreadyMember.length === 1
+              ? `${list} is already a member of your organization.`
+              : `These emails are already members: ${list}${more}`
           );
         }
         if (alreadyPending.length) {
