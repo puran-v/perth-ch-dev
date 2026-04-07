@@ -3,6 +3,58 @@
 > **This document is the single source of truth for every developer and every AI coding agent working on this project.**
 > Read this BEFORE writing any code. If something contradicts this document, this document wins.
 
+
+You MUST strictly follow ALL rules in PROJECT_RULES.md and check as well below rules. This is the single source of truth and overrides everything.
+
+Execution Guidelines:
+1. Fully understand the task before writing code. If unclear → STOP and ask.
+2. Think step-by-step: architecture → database → API → frontend.
+3. Implement only production-ready, scalable, and clean code.
+
+Core Rules (NON-NEGOTIABLE):
+- Multi-tenant: EVERY table and query MUST include orgId (never trust client input, always from session)
+- Booking ID is the central reference across all modules
+- Strict TypeScript (no `any`, full types everywhere)
+- Zod validation REQUIRED for every API input
+- API pattern: Auth → RBAC → orgId → business logic → response
+- Prisma queries MUST always include `where: { orgId }`
+- Proper error handling (standard success/error response format)
+- Soft delete only (no permanent deletes)
+
+Architecture & Code:
+- Follow exact project folder structure and module boundaries
+- Use RESTful API conventions (App Router, route.ts)
+- Add JSDoc for all functions
+- Add comments explaining WHY for complex logic
+- Keep components modular (<200 lines)
+
+Frontend Rules:
+- Mobile-first responsive design (all breakpoints)
+- Use Tailwind design tokens ONLY (no hex, no inline styles)
+- Use typography tokens (no default Tailwind sizes)
+- Use React Query for all server state (no manual fetch/useEffect)
+- Proper loading, error, and empty states
+- Accessibility required (aria, keyboard support)
+
+AI Rules:
+- AI only suggests, NEVER auto-executes
+- Always include explanation ("why")
+- Use module-based AI structure via API routes
+
+Before Final Output (MANDATORY CHECK):
+- All queries scoped by orgId
+- No TypeScript violations
+- Zod validation present
+- API follows required pattern
+- UI follows design system
+- Fully responsive
+- No rule violations
+
+If ANY rule is violated → FIX before returning.
+
+Output ONLY clean, final, production-ready code.
+
+
 ---
 
 First read the AGENTS.md from the project files and go according to it so our project can no be break.

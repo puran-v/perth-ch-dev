@@ -41,6 +41,7 @@ import type { InputJsonValue } from "@/generated/prisma/internal/prismaNamespace
 import type { BusinessFormData } from "@/components/admin/BusinessInfoForm";
 import type { WarehouseFormData } from "@/components/admin/WarehouseLocationForm";
 import type { PaymentFormData } from "@/components/admin/PaymentInvoiceForm";
+import type { BrandingFormData } from "@/components/admin/BrandingForm";
 
 const ROUTE = "/api/org-setup";
 
@@ -55,6 +56,7 @@ const ROUTE = "/api/org-setup";
 export type OrgSetupBusinessSection = Partial<BusinessFormData>;
 export type OrgSetupWarehouseSection = Partial<WarehouseFormData>;
 export type OrgSetupPaymentSection = Partial<PaymentFormData>;
+export type OrgSetupBrandingSection = Partial<BrandingFormData>;
 
 /** Shape returned to the client for both GET and PUT. */
 export interface OrgSetupResponse {
@@ -62,6 +64,7 @@ export interface OrgSetupResponse {
   business: OrgSetupBusinessSection | null;
   warehouse: OrgSetupWarehouseSection | null;
   payment: OrgSetupPaymentSection | null;
+  branding: OrgSetupBrandingSection | null;
   updatedAt: string;
 }
 
@@ -104,6 +107,7 @@ async function loadOrgSetup(orgId: string | null): Promise<OrgSetupResponse | nu
       business: true,
       warehouse: true,
       payment: true,
+      branding: true,
       updatedAt: true,
     },
   });
@@ -115,6 +119,7 @@ async function loadOrgSetup(orgId: string | null): Promise<OrgSetupResponse | nu
     business: asJsonObject<BusinessFormData>(row.business),
     warehouse: asJsonObject<WarehouseFormData>(row.warehouse),
     payment: asJsonObject<PaymentFormData>(row.payment),
+    branding: asJsonObject<BrandingFormData>(row.branding),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -297,13 +302,15 @@ export async function PUT(req: Request): Promise<Response> {
     }
 
     // Prisma Json columns: passing `undefined` means "don't touch this
-    // field" on update, which is what we want when a draft request omits
-    // a section — we preserve whatever was previously stored instead of
-    // wiping it. The Save Draft button in our UI always sends all three
-    // sections, but we guard anyway.
+    // field" on update, which is what we want when a request omits a
+    // section — we preserve whatever was previously stored instead of
+    // wiping it. Each page in Module A only submits the sections it
+    // owns (org-setup → business/warehouse/payment, branding → branding),
+    // so this is the common case, not an edge case.
     const business = payload.business as InputJsonValue | undefined;
     const warehouse = payload.warehouse as InputJsonValue | undefined;
     const payment = payload.payment as InputJsonValue | undefined;
+    const branding = payload.branding as InputJsonValue | undefined;
 
     const saved = await db.orgSetup.upsert({
       where: { orgId },
@@ -313,12 +320,14 @@ export async function PUT(req: Request): Promise<Response> {
         business,
         warehouse,
         payment,
+        branding,
       },
       update: {
         status: newStatus,
         business,
         warehouse,
         payment,
+        branding,
         updatedAt: nowIso,
       },
       select: {
@@ -326,6 +335,7 @@ export async function PUT(req: Request): Promise<Response> {
         business: true,
         warehouse: true,
         payment: true,
+        branding: true,
         updatedAt: true,
       },
     });
@@ -343,6 +353,7 @@ export async function PUT(req: Request): Promise<Response> {
       business: asJsonObject<BusinessFormData>(saved.business),
       warehouse: asJsonObject<WarehouseFormData>(saved.warehouse),
       payment: asJsonObject<PaymentFormData>(saved.payment),
+      branding: asJsonObject<BrandingFormData>(saved.branding),
       updatedAt: saved.updatedAt.toISOString(),
     });
     response.headers.set("Cache-Control", "private, no-store");
