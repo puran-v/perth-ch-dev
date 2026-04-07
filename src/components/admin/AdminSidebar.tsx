@@ -26,10 +26,25 @@ import {
 
 type BadgeType = "notification" | "status";
 
+/**
+ * Module tag for feature-area nav items. Items without a `module` field
+ * are always visible (Setup pages, profile, etc). Items with a module
+ * are filtered out by ModuleAccess when the user's role doesn't allow
+ * that module — ADMIN users see everything because their module flags
+ * are all true in the session context.
+ *
+ * @author Puran
+ * @created 2026-04-06
+ * @module Sidebar
+ */
+export type NavItemModule = "A" | "B" | "C" | "D" | "E";
+
 interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** Optional module tag — item is hidden unless the user has this module enabled */
+  module?: NavItemModule;
   badge?: {
     type: BadgeType;
     value: string | number;
@@ -39,6 +54,21 @@ interface NavItem {
 interface NavSection {
   heading: string;
   items: NavItem[];
+  /**
+   * If true, the whole section is only rendered for ADMIN users.
+   * Used for the Setup group (Org Setup, Roles, Team & Users, Branding)
+   * since org-level management is an ADMIN-only responsibility.
+   */
+  requiresAdmin?: boolean;
+}
+
+/** Per-module access flags — passed in from the AdminSidebarWrapper via /api/auth/me */
+export interface SidebarModuleAccess {
+  A: boolean;
+  B: boolean;
+  C: boolean;
+  D: boolean;
+  E: boolean;
 }
 
 interface ComingSoonModule {
@@ -64,6 +94,10 @@ interface AdminSidebarProps {
   user: UserInfo;
   navSections: NavSection[];
   comingSoon: ComingSoonModule[];
+  /** Whether the logged-in user is an ADMIN — drives section-level filtering */
+  isAdmin: boolean;
+  /** Per-module access flags from /api/auth/me — drives item-level filtering */
+  modules: SidebarModuleAccess;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -226,10 +260,29 @@ export default function AdminSidebar({
   user,
   navSections,
   comingSoon,
+  isAdmin,
+  modules,
   mobileOpen = false,
   onMobileClose,
 }: AdminSidebarProps) {
   const pathname = usePathname();
+
+  // Author: Puran
+  // Impact: two-pass filter — drop admin-only sections for non-admins, then
+  //         drop module-tagged items the user lacks access to, then drop any
+  //         section that ends up empty (so non-admins don't see an orphaned
+  //         "Setup" header with nothing under it)
+  // Reason: sidebar must mirror the backend guards — users only see what they
+  //         can actually reach, no dead links, no misleading entries
+  const visibleSections = navSections
+    .filter((section) => !section.requiresAdmin || isAdmin)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.module || modules[item.module]
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const sidebarContent = (
     <aside className="flex h-screen w-[280px] shrink-0 flex-col bg-[#042E93] overflow-hidden">
@@ -251,13 +304,23 @@ export default function AdminSidebar({
 
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 sidebar-scrollbar">
-        {navSections.map((section) => (
-          <SidebarNavSection
-            key={section.heading}
-            section={section}
-            pathname={pathname}
-          />
-        ))}
+        {visibleSections.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-5 text-center">
+            <p className="text-sm font-semibold text-white">No access yet</p>
+            <p className="mt-1 text-xs text-white/60 leading-relaxed">
+              Your role hasn&rsquo;t been granted access to any modules. Ask
+              an admin to update your role.
+            </p>
+          </div>
+        ) : (
+          visibleSections.map((section) => (
+            <SidebarNavSection
+              key={section.heading}
+              section={section}
+              pathname={pathname}
+            />
+          ))
+        )}
 
         {/* Coming Soon modules */}
         {comingSoon.length > 0 && (
@@ -308,6 +371,13 @@ export default function AdminSidebar({
 export const defaultNavSections: NavSection[] = [
   {
     heading: "Setup",
+    // Author: Puran
+    // Impact: Setup section is now ADMIN-only
+    // Reason: org-level management (create org, invite users, manage roles,
+    //         branding) is the org owner's job — staff users should never see
+    //         these entries even if they somehow navigate to the URLs the
+    //         backend guards will reject them with FORBIDDEN
+    requiresAdmin: true,
     items: [
       {
         label: "Org Setup",
@@ -315,11 +385,18 @@ export const defaultNavSections: NavSection[] = [
         icon: OrgSetupIcon,
         badge: { type: "status", value: "Incomplete" },
       },
+      // Author: Puran
+      // Impact: surfaced Roles as a top-level sidebar entry (above Team & Users)
+      // Reason: roles are created before inviting — easier discovery as its own link
+      {
+        label: "Roles",
+        href: "/dashboard/team/roles",
+        icon: TeamUsersIcon,
+      },
       {
         label: "Team & Users",
         href: "/dashboard/team",
         icon: TeamUsersIcon,
-        badge: { type: "notification", value: 2 },
       },
       {
         label: "Branding",
@@ -335,27 +412,32 @@ export const defaultNavSections: NavSection[] = [
         label: "Products",
         href: "/dashboard/products",
         icon: ProductsIcon,
+        module: "A",
       },
       {
         label: "Bundles & Packages",
         href: "/dashboard/bundles",
         icon: BundlesIcon,
+        module: "A",
       },
       {
         label: "Quote Templates",
         href: "/dashboard/quote-templates",
         icon: QuoteTemplatesIcon,
+        module: "A",
       },
       {
         label: "Pricing & Rules",
         href: "/dashboard/pricing",
         icon: PricingRulesIcon,
+        module: "A",
         badge: { type: "status", value: "Set Up" },
       },
       {
         label: "CSV Import",
         href: "/dashboard/csv-import",
         icon: CsvImportIcon,
+        module: "A",
       },
     ],
   },

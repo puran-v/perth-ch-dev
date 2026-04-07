@@ -24,8 +24,40 @@ import type { UserRole } from "@/generated/prisma/enums";
 // ── Types ────────────────────────────────────────────────────────────
 
 /**
+ * Module access flags — mirrors the moduleA..moduleE columns on
+ * OrganizationRole. Every request carries these so the frontend + backend
+ * can gate feature areas (Module A quoting, Module B inventory, etc.)
+ * without an extra DB round-trip.
+ *
+ * @author Puran
+ * @created 2026-04-06
+ * @module Auth - Guards
+ */
+export interface ModuleAccess {
+  A: boolean;
+  B: boolean;
+  C: boolean;
+  D: boolean;
+  E: boolean;
+}
+
+/** All modules on — used for ADMIN users who bypass the check entirely */
+const ALL_MODULES: ModuleAccess = { A: true, B: true, C: true, D: true, E: true };
+
+/** All modules off — used when a user has no OrganizationRole assigned */
+const NO_MODULES: ModuleAccess = { A: false, B: false, C: false, D: false, E: false };
+
+/** Valid module letter keys */
+export type ModuleKey = keyof ModuleAccess;
+
+/**
  * Typed session context returned by getAppSession.
  * Contains everything a protected route needs — no passwordHash, no tokens.
+ *
+ * `modules` is the user's computed module access:
+ *   - ADMIN role: always ALL_MODULES (global bypass)
+ *   - Has OrganizationRole: copy the role's moduleA..moduleE flags
+ *   - No OrganizationRole: NO_MODULES (can still read team/profile, no feature access)
  *
  * @author Puran
  * @created 2026-04-03
@@ -38,6 +70,9 @@ export interface AuthContext {
   role: UserRole;
   isVerified: boolean;
   orgId: string | null;
+  organizationRoleId: string | null;
+  organizationRoleName: string | null;
+  modules: ModuleAccess;
 }
 
 /** AuthContext with orgId guaranteed non-null — returned by requireOrg */
@@ -66,7 +101,11 @@ export type Permission =
   | "finance.read"
   | "finance.write"
   | "team.read"
-  | "team.update";
+  | "team.update"
+  | "team.invite"
+  | "team.manage"
+  | "role.read"
+  | "role.manage";
 
 // ── Session resolution ───────────────────────────────────────────────
 
@@ -91,14 +130,37 @@ export async function getAppSession(req: Request): Promise<AuthContext | null> {
   const session = await validateSession(token);
   if (!session) return null;
 
-  // orgId comes from validateSession's user select — no extra DB query
+  const user = session.user;
+
+  // Compute module access:
+  //   - ADMIN users bypass module gates entirely (global access)
+  //   - Users with an OrganizationRole inherit its moduleA..E flags
+  //   - Users without a role get no module access (can still read profile/team)
+  let modules: ModuleAccess;
+  if (user.role === "ADMIN") {
+    modules = ALL_MODULES;
+  } else if (user.organizationRole) {
+    modules = {
+      A: user.organizationRole.moduleA,
+      B: user.organizationRole.moduleB,
+      C: user.organizationRole.moduleC,
+      D: user.organizationRole.moduleD,
+      E: user.organizationRole.moduleE,
+    };
+  } else {
+    modules = NO_MODULES;
+  }
+
   return {
-    userId: session.user.id,
-    email: session.user.email,
-    fullName: session.user.fullName,
-    role: session.user.role,
-    isVerified: session.user.isVerified,
-    orgId: session.user.orgId,
+    userId: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    role: user.role,
+    isVerified: user.isVerified,
+    orgId: user.orgId,
+    organizationRoleId: user.organizationRoleId,
+    organizationRoleName: user.organizationRole?.name ?? null,
+    modules,
   };
 }
 
@@ -145,6 +207,14 @@ export async function requireAuth(req: Request): Promise<AuthContext | Response>
  * @created 2026-04-03
  * @module Auth - Guards
  */
+// Old Author: Puran
+// New Author: Puran
+// Impact: removed dev-only org bypass — real org-setup flow is live
+// Reason: samir shipped PUT /api/org-setup which auto-creates the Organization
+//         on first save and attaches user.orgId. The dev fallback is no longer
+//         needed and would have masked any user who skipped org-setup; the
+//         dashboard layout now redirects orphan users to /dashboard/org-setup
+//         instead (see AdminSidebarWrapper).
 export function requireOrg(ctx: AuthContext): OrgAuthContext | Response {
   if (!ctx.orgId) {
     return error(
@@ -179,6 +249,39 @@ export function requirePermission<T extends AuthContext>(ctx: T, permission: Per
   return ctx;
 }
 
+/**
+ * Requires the user's assigned OrganizationRole to have the given module
+ * enabled. ADMIN users always pass (their modules are computed as ALL true
+ * in getAppSession). Everyone else must have an OrganizationRole with the
+ * matching moduleX flag set to true.
+ *
+ * Use this AFTER requireAuth + requireOrg (+ optional requirePermission) on
+ * every feature-area API route. Pair it with a client-side <ModuleGuard>
+ * on the corresponding dashboard page so the frontend mirrors the backend.
+ *
+ * @param ctx - Context from requireOrg (guaranteed orgId)
+ * @param module - Which module the route belongs to (A/B/C/D/E)
+ * @returns Same context if allowed, or 403 MODULE_FORBIDDEN Response
+ *
+ * @author Puran
+ * @created 2026-04-06
+ * @module Auth - Guards
+ */
+export function requireModule<T extends AuthContext>(
+  ctx: T,
+  module: ModuleKey
+): T | Response {
+  if (!ctx.modules[module]) {
+    return error(
+      "MODULE_FORBIDDEN",
+      `Your role does not have access to Module ${module}. Ask an admin to update your role.`,
+      403,
+      { module }
+    );
+  }
+  return ctx;
+}
+
 // ── RBAC permissions ─────────────────────────────────────────────────
 
 /**
@@ -203,7 +306,8 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
     "inventory.read", "inventory.update",
     "warehouse.read", "warehouse.update",
     "finance.read",
-    "team.read", "team.update",
+    "team.read", "team.update", "team.invite",
+    "role.read",
   ],
   STAFF: [
     "booking.read",

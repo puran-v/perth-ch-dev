@@ -12,13 +12,16 @@
  * @module Auth - Dashboard Layout
  */
 
-// Old Author: Puran
-// New Author: samir
-// Impact: removed useSearchParams to eliminate Suspense bailout that caused sidebar flicker on hard refresh
-// Reason: useSearchParams forces the closest Suspense boundary to render its fallback (null) during hydration, making the 280px sidebar disappear/reappear and shift layout. Reading ?oauth=success from window.location.search inside the existing effect is equivalent and runs only on the client, so no Suspense is required.
+// Old Author: samir
+// New Author: Puran
+// Impact: switched from raw fetch to useCurrentUser React Query hook; pass
+//         isAdmin + modules to AdminSidebar so section/item filtering works
+// Reason: dynamic module-based permissions — the sidebar must mirror what
+//         the backend guards allow so non-admins don't see unreachable links
 
 import { useEffect, useState, createContext, useRef, useContext } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import AdminSidebar, {
   defaultNavSections,
@@ -26,6 +29,7 @@ import AdminSidebar, {
   defaultTenant,
   defaultUser,
 } from "@/components/admin/AdminSidebar";
+import { useCurrentUser, CURRENT_USER_QUERY_KEY } from "@/hooks/useCurrentUser";
 
 // Author: samir
 // Impact: added MobileSidebarContext for layout hamburger toggle
@@ -42,13 +46,6 @@ const MobileSidebarContext = createContext<MobileSidebarContextType>({
 
 export function useMobileSidebar() {
   return useContext(MobileSidebarContext);
-}
-
-interface CurrentUser {
-  id: string;
-  fullName: string;
-  email: string;
-  role: string;
 }
 
 /**
@@ -83,42 +80,66 @@ function formatRole(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 }
 
+/** Path of the org-setup wizard — the only safe destination for orphan users */
+const ORG_SETUP_PATH = "/dashboard/org-setup";
+
 export default function AdminSidebarWrapper() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const {
+    data: currentUser,
+    error: currentUserError,
+    isFetching: isFetchingCurrentUser,
+  } = useCurrentUser();
   const { mobileOpen, setMobileOpen } = useMobileSidebar();
   const toastShown = useRef(false);
 
+  // If /api/auth/me rejects (401), the session is gone — bounce to /login.
+  // React Query reports this via `error` instead of throwing, so we watch it.
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) {
-          router.push("/login");
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.success && data.data) {
-          setCurrentUser(data.data);
+    if (currentUserError) {
+      router.push("/login");
+    }
+  }, [currentUserError, router]);
 
-          // Author: samir
-          // Impact: read ?oauth=success from window.location instead of useSearchParams
-          // Reason: useSearchParams would require a Suspense boundary around the whole sidebar, and that boundary rendered null on hydration, causing the sidebar to flicker on hard refresh. window.location is safe here because useEffect runs client-only.
-          const url = new URL(window.location.href);
-          if (url.searchParams.get("oauth") === "success" && !toastShown.current) {
-            toastShown.current = true;
-            toast.success(`Welcome, ${data.data.fullName}!`);
-            // Clean up the query param without page reload
-            url.searchParams.delete("oauth");
-            window.history.replaceState({}, "", url.pathname);
-          }
-        }
-      })
-      .catch(() => {
-        router.push("/login");
-      });
-  }, [router]);
+  // Author: Puran
+  // Impact: orphan ADMIN redirect — users without an orgId must complete
+  //         org-setup before they can reach any tenant-scoped page
+  // Reason: signup creates users with orgId=null (samir's PUT /api/org-setup
+  //         creates the org on first save). Without this redirect, a freshly
+  //         signed-up admin lands on /dashboard and every data query throws
+  //         ORG_REQUIRED. We skip the redirect when they're already on the
+  //         org-setup page (which works for orphans — auth-only) to avoid
+  //         a navigation loop.
+  //
+  // Race guard: while the current-user query is *refetching* (e.g. right
+  // after PUT /api/org-setup invalidates the cache), React Query keeps the
+  // old data visible with isFetching=true. If we redirected based on the
+  // stale data during that window, we'd bounce the user back to org-setup
+  // before the new orgId lands. Waiting out the refetch fixes the loop.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isFetchingCurrentUser) return;
+    if (currentUser.orgId) return;
+    if (pathname === ORG_SETUP_PATH) return;
+    router.replace(ORG_SETUP_PATH);
+  }, [currentUser, isFetchingCurrentUser, pathname, router]);
+
+  // Author: samir
+  // Impact: read ?oauth=success from window.location on first successful load
+  // Reason: useSearchParams would force a Suspense boundary that flickers the
+  //         sidebar on hard refresh; window.location is safe in an effect
+  useEffect(() => {
+    if (!currentUser || toastShown.current) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("oauth") === "success") {
+      toastShown.current = true;
+      toast.success(`Welcome, ${currentUser.fullName}!`);
+      url.searchParams.delete("oauth");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  }, [currentUser]);
 
   /**
    * Logs out the user: calls POST /api/auth/logout, shows toast,
@@ -138,6 +159,9 @@ export default function AdminSidebarWrapper() {
     } catch {
       toast.error("Logout failed. Please try again.");
     }
+    // Drop the cached current user so the next login doesn't briefly
+    // render the previous user's sidebar before /api/auth/me refetches
+    queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY });
     // Small delay so user sees the toast before redirect
     setTimeout(() => router.push("/login"), 800);
   };
@@ -145,11 +169,28 @@ export default function AdminSidebarWrapper() {
   const user = currentUser
     ? {
         name: currentUser.fullName,
-        role: formatRole(currentUser.role),
+        // Prefer the org-role label (e.g. "Floor Manager") over the system
+        // role enum — it's what the user actually identifies with.
+        role: currentUser.organizationRoleName ?? formatRole(currentUser.role),
         avatarInitials: getInitials(currentUser.fullName),
         onLogout: handleLogout,
       }
     : { ...defaultUser, onLogout: handleLogout };
+
+  // Permission inputs for the sidebar filter:
+  //   - isAdmin controls whether the ADMIN-only Setup section is shown
+  //   - modules controls which feature-area items within kept sections render
+  // While currentUser is still loading we render in "nothing visible" mode
+  // so we never flash admin-only links to a non-admin in the split second
+  // before /api/auth/me resolves.
+  const isAdmin = currentUser?.role === "ADMIN";
+  const modules = currentUser?.modules ?? {
+    A: false,
+    B: false,
+    C: false,
+    D: false,
+    E: false,
+  };
 
   return (
     <AdminSidebar
@@ -157,6 +198,8 @@ export default function AdminSidebarWrapper() {
       user={user}
       navSections={defaultNavSections}
       comingSoon={defaultComingSoon}
+      isAdmin={isAdmin}
+      modules={modules}
       mobileOpen={mobileOpen}
       onMobileClose={() => setMobileOpen(false)}
     />

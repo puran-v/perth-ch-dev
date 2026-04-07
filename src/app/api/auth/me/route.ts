@@ -14,8 +14,8 @@
 
 // Old Author: Puran
 // New Author: Puran
-// Impact: switched from raw validateSession to getAppSession guard for consistency
-// Reason: single session resolution path — all routes use the same AuthContext type
+// Impact: surface organizationRole + computed module flags in the response
+// Reason: frontend nav + ModuleGuard need module access info to render correctly
 
 import { requireAuth } from "@/server/lib/auth/guards";
 import { success, error } from "@/server/core/response";
@@ -46,7 +46,13 @@ export async function GET(req: Request): Promise<Response> {
       fullName: ctx.fullName,
       email: ctx.email,
       role: ctx.role,
+      isVerified: ctx.isVerified,
       orgId: ctx.orgId,
+      organizationRoleId: ctx.organizationRoleId,
+      organizationRoleName: ctx.organizationRoleName,
+      // Computed module flags — ADMIN always gets all five; other users
+      // inherit from their assigned OrganizationRole (or all-false if none)
+      modules: ctx.modules,
     });
 
     // Session data must not be cached by proxies or browsers

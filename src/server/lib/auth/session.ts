@@ -45,19 +45,47 @@ export async function createSession(userId: string) {
  * Returns the session with user data if valid, null if expired or not found.
  * Expired sessions are soft-deleted (deletedAt set) per §5.3.
  *
+ * Also pulls the user's assigned OrganizationRole (with its module A–E flags)
+ * so callers can build a complete AuthContext in a single query — no extra
+ * round-trip on the hot path for every protected route.
+ *
  * @param token - The session token from the cookie
- * @returns Session with user data (id, fullName, email, role, isVerified, orgId), or null if invalid/expired
+ * @returns Session with user + organizationRole, or null if invalid/expired
  *
  * @author Puran
  * @created 2026-04-02
  * @module Auth - Session Management
  */
+// Old Author: Puran
+// New Author: Puran
+// Impact: include organizationRole module flags in the session select
+// Reason: dynamic module-based permissions need the flags on the AuthContext
+//         without adding a second DB query to every protected request
 export async function validateSession(token: string) {
   const session = await db.session.findUnique({
     where: { token, deletedAt: null },
     include: {
       user: {
-        select: { id: true, fullName: true, email: true, role: true, isVerified: true, orgId: true },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          isVerified: true,
+          orgId: true,
+          organizationRoleId: true,
+          organizationRole: {
+            select: {
+              id: true,
+              name: true,
+              moduleA: true,
+              moduleB: true,
+              moduleC: true,
+              moduleD: true,
+              moduleE: true,
+            },
+          },
+        },
       },
     },
   });

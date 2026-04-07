@@ -29,6 +29,7 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { StepperStep } from '@/components/ui/SetupStepper';
 import { useApiQuery, useApiMutation } from '@/hooks';
+import { CURRENT_USER_QUERY_KEY } from '@/hooks/useCurrentUser';
 import { ApiError } from '@/lib/api-client';
 import {
   businessInfoSchema,
@@ -189,13 +190,19 @@ export default function OrgSetupPage() {
     '/api/org-setup',
   );
 
-  // Author: samir
-  // Impact: single mutation handles both Save Draft and Save & Continue
-  // Reason: the API accepts mode=draft|complete so we only need one hook; the onSuccess branching happens in the handler so each button can show its own toast + navigation
+  // Old Author: samir
+  // New Author: Puran
+  // Impact: also invalidate CURRENT_USER_QUERY_KEY on save
+  // Reason: PUT /api/org-setup creates the Organization + attaches user.orgId
+  //         on first save. The sidebar wrapper reads `currentUser.orgId` from
+  //         the React Query cache to decide whether to redirect orphan users
+  //         to this page. Without invalidating, the cache keeps returning
+  //         orgId: null even after the org exists → user gets redirected
+  //         back here forever when they try to navigate to Roles/Team/etc.
   const saveMutation = useApiMutation<OrgSetupResponse, SaveOrgSetupPayload>(
     '/api/org-setup',
     'put',
-    { invalidateKeys: [ORG_SETUP_QUERY_KEY] },
+    { invalidateKeys: [ORG_SETUP_QUERY_KEY, CURRENT_USER_QUERY_KEY] },
   );
 
   const isSaving = saveMutation.isPending;
