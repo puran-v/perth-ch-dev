@@ -39,6 +39,8 @@ model Organization {
   users                 User[]
   emailVerificationOtps EmailVerificationOtp[]
   orgSetup              OrgSetup?
+  organizationRoles     OrganizationRole[]
+  invitations           Invitation[]
 
   @@map("organizations")
 }
@@ -67,25 +69,122 @@ model OrgSetup {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  orgId        String?
-  fullName     String
-  email        String    @unique
-  passwordHash String?
-  role         UserRole  @default(ADMIN)
-  isVerified   Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id                 String    @id @default(cuid())
+  orgId              String?
+  organizationRoleId String?
+  // fullName is the canonical display name kept for backward compat with
+  // existing UI. firstName/lastName/jobTitle are populated at invite-accept
+  // time (or via signup later) and are the source of truth going forward —
+  // when both are present, fullName should equal `${firstName} ${lastName}`.
+  // All three are nullable so legacy users created before this migration
+  // (only fullName populated) keep working with no backfill.
+  fullName           String
+  firstName          String?
+  lastName           String?
+  jobTitle           String?
+  email              String    @unique
+  passwordHash       String?
+  role               UserRole  @default(ADMIN)
+  isVerified         Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   org                   Organization?          @relation(fields: [orgId], references: [id])
+  organizationRole      OrganizationRole?      @relation(fields: [organizationRoleId], references: [id])
   emailVerificationOtps EmailVerificationOtp[]
   sessions              Session[]
   passwordResetTokens   PasswordResetToken[]
   accounts              Account[]
+  invitationsSent       Invitation[]           @relation("InvitedBy")
 
   @@index([orgId])
+  @@index([organizationRoleId])
   @@map("users")
+}
+
+/// OrganizationRole — V1 org-scoped role with module access flags.
+/// Display/metadata only for V1; system RBAC still uses User.role enum.
+/// V2 will wire these modules into guards as effective permissions.
+model OrganizationRole {
+  id          String    @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  sortOrder   Int       @default(0)
+
+  // System roles are created by the platform (currently only the founding
+  // "Admin" role seeded during org-setup completion) and are locked against
+  // rename / module-toggle / delete through API + UI checks. Use isSystem
+  // as the source of truth — never rely on the `name` field alone.
+  // §5.3 — locked rather than immutable so a future migration could convert
+  //        legacy rows or add new system roles without a destructive reset.
+  isSystem    Boolean   @default(false)
+
+  // V1 module access flags — Scope 1 modules A-E
+  // Future: replace with a permissions JSON column when V2 fine-grained perms land
+  moduleA     Boolean   @default(false) // Quoting & Booking
+  moduleB     Boolean   @default(false) // Inventory
+  moduleC     Boolean   @default(false) // Warehouse
+  moduleD     Boolean   @default(false) // Finance
+  moduleE     Boolean   @default(false) // Reports (placeholder)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdBy   String?
+  updatedBy   String?
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users       User[]
+  invitations Invitation[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@index([orgId, sortOrder])
+  @@index([orgId, isSystem])
+  @@map("organization_roles")
+}
+
+/// Invitation — org-scoped invite with hashed token + expiry.
+/// Bulk creation supported via batch POST. Soft-delete via revokedAt.
+///
+/// firstName / lastName / jobTitle are captured at invite time so the
+/// invitation email can greet by first name and the new User row can be
+/// pre-populated with the same data on accept (no retyping). All three
+/// are nullable for backward compatibility with invites created before
+/// this column landed.
+model Invitation {
+  id                 String    @id @default(cuid())
+  orgId              String
+  email              String
+  firstName          String?
+  lastName           String?
+  jobTitle           String?
+  organizationRoleId String
+  tokenHash          String    @unique
+  expiresAt          DateTime
+  sentAt             DateTime  @default(now())
+  consumedAt         DateTime?
+  revokedAt          DateTime?
+  personalMessage    String?
+  invitedByUserId    String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organizationRole OrganizationRole  @relation(fields: [organizationRoleId], references: [id])
+  invitedBy        User?             @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+
+  @@index([orgId])
+  @@index([orgId, email])
+  @@index([organizationRoleId])
+  @@index([expiresAt])
+  @@map("invitations")
 }
 
 model Account {

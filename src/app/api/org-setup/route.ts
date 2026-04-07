@@ -247,24 +247,62 @@ export async function PUT(req: Request): Promise<Response> {
     let orgCreated = false;
 
     if (!orgId) {
-      // First save for this user — create the org and link it atomically.
-      // We don't want a partially-linked user, so both writes go through
-      // a single interactive transaction.
+      // Old Author: samir
+      // New Author: Puran
+      // Impact: also seed the system "Admin" OrganizationRole in the same tx
+      //         and attach the founding user to it
+      // Reason: every new org needs a default role row so (a) the founder
+      //         shows up with "Admin" in the Users tab / sidebar instead of
+      //         a blank role, (b) the Roles page has at least one row from
+      //         day one, (c) system-role locks (isSystem) give us a stable
+      //         hook for "last admin" checks on member PATCH. All four
+      //         writes — org, user.orgId, role, user.organizationRoleId —
+      //         must succeed or none should: one interactive transaction.
       const created = await db.$transaction(async (tx) => {
         const org = await tx.organization.create({
           data: { name: orgName },
           select: { id: true },
         });
+
+        // System Admin role: all modules enabled, flagged isSystem so the
+        // roles API + UI refuse to edit/delete it. Name is a reserved label
+        // for the @@unique([orgId, name]) index on this org only.
+        const adminRole = await tx.organizationRole.create({
+          data: {
+            orgId: org.id,
+            name: "Admin",
+            description:
+              "Full access to every module. Created automatically for the org founder.",
+            sortOrder: 0,
+            isSystem: true,
+            moduleA: true,
+            moduleB: true,
+            moduleC: true,
+            moduleD: true,
+            moduleE: true,
+            createdBy: authCtx.userId,
+            updatedBy: authCtx.userId,
+          },
+          select: { id: true },
+        });
+
         await tx.user.update({
           where: { id: authCtx.userId },
-          data: { orgId: org.id },
+          data: {
+            orgId: org.id,
+            organizationRoleId: adminRole.id,
+          },
         });
+
         return org;
       });
 
       orgId = created.id;
       orgCreated = true;
-      logger.info("Org created during setup", { ...logCtx, orgId });
+      logger.info("Org + system Admin role created during setup", {
+        ...logCtx,
+        orgId,
+      });
     } else if (candidateName) {
       // Keep Organization.name in sync with whatever business name the
       // user is currently typing. This is a best-effort convenience —
