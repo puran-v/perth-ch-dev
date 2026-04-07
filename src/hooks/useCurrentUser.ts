@@ -45,10 +45,10 @@ export interface CurrentUser {
   fullName: string;
   email: string;
   role: UserRole;
+  /** Display name of the assigned OrganizationRole, or null if none */
+  roleName: string | null;
   isVerified: boolean;
   orgId: string | null;
-  organizationRoleId: string | null;
-  organizationRoleName: string | null;
   modules: CurrentUserModules;
 }
 

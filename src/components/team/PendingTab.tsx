@@ -23,7 +23,8 @@
 // Reason: client requested visual parity with the Figma — same card-shell
 //         pattern as the new UsersTab so the whole feature feels cohesive
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "react-toastify";
 import { EmptyState } from "@/components/ui/EmptyState";
 import Button from "@/components/ui/Button";
@@ -113,7 +114,43 @@ export function PendingTab() {
     }
   };
 
+  // Author: Puran
+  // Impact: same ORG_REQUIRED handling as UsersTab — show a friendly setup
+  //         prompt instead of dumping the raw 403 message into a red card
+  // Reason: a fresh signup hitting the Pending tab before completing org
+  //         setup gets the same backend error; the UX should match.
+  const orgRequired =
+    error instanceof ApiError && error.code === "ORG_REQUIRED";
+
+  useEffect(() => {
+    if (orgRequired) {
+      toast.info(
+        "Finish your organization setup before managing invitations."
+      );
+    }
+  }, [orgRequired]);
+
   if (isLoading) return <PendingSkeleton />;
+
+  if (orgRequired) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <p className="text-sm font-semibold text-amber-900">
+          Set up your organization first
+        </p>
+        <p className="mt-1 text-sm text-amber-800">
+          You need to complete the Org Setup step before you can send or
+          manage invitations.
+        </p>
+        <Link
+          href="/dashboard/org-setup"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-800"
+        >
+          Go to Org Setup
+        </Link>
+      </div>
+    );
+  }
 
   if (error) {
     return (

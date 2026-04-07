@@ -46,10 +46,12 @@ export async function GET(req: Request): Promise<Response> {
       fullName: ctx.fullName,
       email: ctx.email,
       role: ctx.role,
+      // Old: organizationRoleId + organizationRoleName
+      // New: roleName (just the display label of the assigned org role)
+      // Reason: clients only ever read the name — the id was unused noise.
+      roleName: ctx.organizationRoleName,
       isVerified: ctx.isVerified,
       orgId: ctx.orgId,
-      organizationRoleId: ctx.organizationRoleId,
-      organizationRoleName: ctx.organizationRoleName,
       // Computed module flags — ADMIN always gets all five; other users
       // inherit from their assigned OrganizationRole (or all-false if none)
       modules: ctx.modules,

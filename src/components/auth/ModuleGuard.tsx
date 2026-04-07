@@ -93,7 +93,7 @@ export function ModuleGuard({ module, children }: ModuleGuardProps) {
           <p className="mt-1 text-sm text-slate-600">
             Your role &mdash;{" "}
             <span className="font-medium text-slate-900">
-              {currentUser.organizationRoleName ?? currentUser.role}
+              {currentUser.roleName ?? currentUser.role}
             </span>{" "}
             &mdash; doesn&rsquo;t include this module. Ask an admin to update
             your role if you need access.

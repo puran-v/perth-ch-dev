@@ -25,10 +25,12 @@
 // Reason: client requested visual parity + real last-login time instead
 //         of the updatedAt fallback we were showing before
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "react-toastify";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useMembers } from "@/hooks/team/useMembers";
+import { ApiError } from "@/lib/api-client";
 import { RevokeMemberModal } from "./RevokeMemberModal";
 import type { Member } from "@/types/team";
 
@@ -47,7 +49,47 @@ export function UsersTab() {
   // + the system-admin warning without needing its own data fetch.
   const [revokingMember, setRevokingMember] = useState<Member | null>(null);
 
+  // Author: Puran
+  // Impact: detect the "no org yet" case the backend signals via ORG_REQUIRED
+  //         so we can show a friendly setup prompt instead of a raw red error
+  // Reason: a fresh signup who deep-links to /dashboard/team before saving
+  //         org-setup hits requireOrg → 403 ORG_REQUIRED. The previous UI
+  //         dumped the JSON-ish message into a red card, which looked broken.
+  const orgRequired =
+    error instanceof ApiError && error.code === "ORG_REQUIRED";
+
+  // Surface the "set up org first" hint as a toast on first render so the
+  // user sees it even if they're scrolled past the empty state. Guarded on
+  // orgRequired so we don't fire it for unrelated errors.
+  useEffect(() => {
+    if (orgRequired) {
+      toast.info(
+        "Finish your organization setup before inviting team members."
+      );
+    }
+  }, [orgRequired]);
+
   if (isLoading) return <MembersSkeleton />;
+
+  if (orgRequired) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <p className="text-sm font-semibold text-amber-900">
+          Set up your organization first
+        </p>
+        <p className="mt-1 text-sm text-amber-800">
+          You need to complete the Org Setup step before you can invite or
+          manage team members.
+        </p>
+        <Link
+          href="/dashboard/org-setup"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-800"
+        >
+          Go to Org Setup
+        </Link>
+      </div>
+    );
+  }
 
   if (error) {
     return (

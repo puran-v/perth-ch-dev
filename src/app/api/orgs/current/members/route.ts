@@ -51,7 +51,18 @@ export async function GET(req: Request): Promise<Response> {
 
     const { page, limit, skip } = parsePagination(new URL(req.url).searchParams);
 
-    const where = { orgId: permResult.orgId, deletedAt: null };
+    // Author: Puran
+    // Impact: hide the caller from their own Users tab
+    // Reason: the signed-in user already sees themselves in the sidebar /
+    //         account menu — listing them again in the Team & Users table
+    //         is noise, and the row would be uneditable anyway (you can't
+    //         demote or remove yourself in V1). The total count also
+    //         excludes self so pagination stays accurate.
+    const where = {
+      orgId: permResult.orgId,
+      deletedAt: null,
+      id: { not: permResult.userId },
+    };
 
     const [rows, total] = await Promise.all([
       db.user.findMany({
