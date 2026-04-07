@@ -88,6 +88,27 @@ export async function PATCH(
       );
     }
 
+    // Author: Puran
+    // Impact: case-insensitive duplicate check on rename
+    // Reason: Postgres unique index on (orgId, name) is case-sensitive, so a
+    //         user could rename "Manager" → "manager" and end up with two
+    //         visually-identical roles. Skip the check when name is omitted
+    //         (other fields being patched) or unchanged.
+    if (parsed.data.name) {
+      const duplicate = await db.organizationRole.findFirst({
+        where: {
+          orgId: permResult.orgId,
+          deletedAt: null,
+          id: { not: id },
+          name: { equals: parsed.data.name, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return error("ROLE_NAME_EXISTS", "A role with this name already exists.", 409);
+      }
+    }
+
     try {
       const role = await db.organizationRole.update({
         where: { id },

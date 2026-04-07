@@ -171,7 +171,7 @@ export default function AdminSidebarWrapper() {
         name: currentUser.fullName,
         // Prefer the org-role label (e.g. "Floor Manager") over the system
         // role enum — it's what the user actually identifies with.
-        role: currentUser.organizationRoleName ?? formatRole(currentUser.role),
+        role: currentUser.roleName ?? formatRole(currentUser.role),
         avatarInitials: getInitials(currentUser.fullName),
         onLogout: handleLogout,
       }

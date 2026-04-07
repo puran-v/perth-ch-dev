@@ -116,6 +116,23 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
+    // Author: Puran
+    // Impact: case-insensitive duplicate check before create
+    // Reason: @@unique([orgId, name]) in Postgres is case-sensitive, so "Admin"
+    //         and "admin" would both pass the DB constraint. Block here so the
+    //         roles list can never grow two rows that look identical to a user.
+    const duplicate = await db.organizationRole.findFirst({
+      where: {
+        orgId: permResult.orgId,
+        deletedAt: null,
+        name: { equals: parsed.data.name, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return error("ROLE_NAME_EXISTS", "A role with this name already exists.", 409);
+    }
+
     try {
       const role = await db.organizationRole.create({
         data: {
