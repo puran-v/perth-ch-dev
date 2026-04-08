@@ -12,9 +12,19 @@ import { toast } from "react-toastify";
 // Impact: replaced verify-email redirect with inline success state + real API call
 // Reason: password reset uses email link, not OTP — verify-email page is wrong destination
 
+// Old Author: Puran
+// New Author: samir
+// Impact: form now distinguishes "email not registered" / "email not verified" / generic errors
+//         and only flips into the success state when the API actually queued a reset email
+// Reason: product decision — the API now returns 404 EMAIL_NOT_REGISTERED instead of a neutral
+//         success, so the user gets a clear "this email isn't registered, sign up instead" message
+//         rather than being told to check an inbox they never owned. Previous behaviour was to
+//         always show the success screen to prevent account enumeration.
+
 /**
  * Forgot-password form — collects email, calls forgot-password API,
- * then shows a "check your email" confirmation inline.
+ * then either shows a "check your email" confirmation inline or surfaces
+ * a typed error (not registered / not verified / rate limited).
  *
  * @author Puran
  * @created 2026-04-02
@@ -24,11 +34,17 @@ export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  // Author: samir
+  // Impact: separate flag for the not-registered case so the form can render a Sign-up link beside the inline error
+  // Reason: the shared <Input/> component's `error` prop only accepts a string, so a clickable link can't live inside it. Tracking this as its own boolean keeps the link rendering self-contained without changing the shared primitive.
+  const [emailNotRegistered, setEmailNotRegistered] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   /**
-   * Validates email and calls the forgot-password API.
-   * Always shows success to prevent email enumeration.
+   * Validates the email locally, then POSTs to /api/auth/forgot-password.
+   * The API returns 404 EMAIL_NOT_REGISTERED for unknown emails, 403
+   * EMAIL_NOT_VERIFIED for unverified accounts, 429 RATE_LIMITED when
+   * throttled, and 200 with a "reset link sent" message on success.
    *
    * @param e - Form submit event
    *
@@ -41,14 +57,17 @@ export default function ForgotPasswordForm() {
 
     if (!email) {
       setError("Email is required.");
+      setEmailNotRegistered(false);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Enter a valid email address.");
+      setEmailNotRegistered(false);
       return;
     }
 
     setError(undefined);
+    setEmailNotRegistered(false);
     setLoading(true);
 
     try {
@@ -60,17 +79,46 @@ export default function ForgotPasswordForm() {
 
       const data = await res.json();
 
-      if (!res.ok && data.error?.code === "RATE_LIMITED") {
-        setError("Too many requests. Please try again later.");
+      if (!res.ok) {
+        const code = data?.error?.code as string | undefined;
+        const message = data?.error?.message as string | undefined;
+
+        if (code === "EMAIL_NOT_REGISTERED") {
+          setError(message ?? "This email is not registered with us.");
+          setEmailNotRegistered(true);
+          setLoading(false);
+          return;
+        }
+        if (code === "EMAIL_NOT_VERIFIED") {
+          setError(message ?? "This email hasn't been verified yet.");
+          setLoading(false);
+          return;
+        }
+        if (code === "RATE_LIMITED") {
+          setError("Too many requests. Please try again later.");
+          setLoading(false);
+          return;
+        }
+        if (code === "VALIDATION_ERROR") {
+          setError(message ?? "Please enter a valid email address.");
+          setLoading(false);
+          return;
+        }
+
+        // Unknown error code — show whatever the server told us, or a generic fallback.
+        setError(message ?? "Something went wrong. Please try again.");
         setLoading(false);
         return;
       }
+
+      // 2xx — reset link queued, flip to the "check your inbox" screen.
+      setLoading(false);
+      setSubmitted(true);
+      return;
     } catch {
       toast.error("Unable to connect. Please check your internet and try again.");
+      setLoading(false);
     }
-
-    setLoading(false);
-    setSubmitted(true);
   };
 
   // Author: samir
@@ -130,11 +178,30 @@ export default function ForgotPasswordForm() {
             type="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              // Clear stale errors as soon as the user starts typing.
+              if (error) setError(undefined);
+              if (emailNotRegistered) setEmailNotRegistered(false);
+            }}
             error={error}
             icon={<EmailIcon />}
             autoComplete="email"
           />
+          {/* Author: samir */}
+          {/* Impact: when the API reports EMAIL_NOT_REGISTERED, append a clickable Sign-up link beneath the inline error so users can jump straight to /signup */}
+          {/* Reason: the shared <Input/> error slot is plain text only — rendering the link as a sibling node keeps the primitive untouched and preserves keyboard/screen-reader semantics */}
+          {emailNotRegistered && (
+            <p className="mt-1.5 text-xs text-gray-500">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/signup"
+                className="font-medium text-[#1a2f6e] hover:underline"
+              >
+                Sign up instead.
+              </Link>
+            </p>
+          )}
         </div>
 
         <Button type="submit" fullWidth loading={loading} size="lg">
