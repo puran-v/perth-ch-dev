@@ -5,11 +5,69 @@
 
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
+// Author: Puran
+// Impact: derive sticky-header title from the current route instead of
+//         hard-coding "Org Setup" for every page; optional back arrow
+//         per route for detail / edit screens
+// Reason: every dashboard page was rendering "Org Setup" in the outer
+//         sticky bar regardless of where the user actually was — broke
+//         the Figma for Products / Bundles / etc. Mapping by pathname
+//         keeps the outer bar honest without forcing each page to wire
+//         a context provider just for one string. The `back` flag is
+//         set on detail-style routes (e.g. product edit) so the sticky
+//         bar grows a back arrow next to the title without each page
+//         needing to render its own "go back" affordance.
+//
+// IMPORTANT: order matters — the FIRST regex match wins, so put more
+// specific patterns BEFORE their parents (e.g. /products/[id]/edit
+// must come before /products).
+interface RouteTitle {
+  match: RegExp;
+  label: string;
+  /** When true, the sticky bar renders a back arrow before the label */
+  back?: boolean;
+}
+
+const ROUTE_TITLES: RouteTitle[] = [
+  { match: /^\/dashboard\/org-setup/, label: "Org Setup" },
+  { match: /^\/dashboard\/branding/, label: "Branding" },
+  { match: /^\/dashboard\/team\/roles/, label: "Roles" },
+  { match: /^\/dashboard\/team\/members\/[^/]+\/edit/, label: "Edit Member", back: true },
+  { match: /^\/dashboard\/team\/members/, label: "Team & Users" },
+  { match: /^\/dashboard\/team/, label: "Team & Users" },
+  { match: /^\/dashboard\/products\/new/, label: "Add Product", back: true },
+  { match: /^\/dashboard\/products\/[^/]+\/edit/, label: "Product Details", back: true },
+  { match: /^\/dashboard\/products/, label: "Products" },
+  { match: /^\/dashboard\/bundles/, label: "Bundles & Packages" },
+  { match: /^\/dashboard\/quote-templates/, label: "Quote Templates" },
+  { match: /^\/dashboard\/pricing/, label: "Pricing & Rules" },
+  { match: /^\/dashboard\/csv-import/, label: "CSV Import" },
+  { match: /^\/dashboard$/, label: "Dashboard" },
+];
+
+/**
+ * Resolves the page label + back-arrow flag for the sticky outer bar
+ * from a pathname. Falls back to "Dashboard" so unknown routes still
+ * render something sensible instead of an empty bar.
+ *
+ * @author Puran
+ * @created 2026-04-07
+ * @module Dashboard - Layout
+ */
+function resolvePageTitle(pathname: string): { label: string; back: boolean } {
+  const hit = ROUTE_TITLES.find((r) => r.match.test(pathname));
+  return { label: hit?.label ?? "Dashboard", back: hit?.back ?? false };
+}
+
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { setMobileOpen } = useMobileSidebar();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { label: title, back: showBack } = resolvePageTitle(pathname);
 
   function formatCurrentDate(): string {
     const now = new Date();
@@ -40,7 +98,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   const notifications = 12;
-  const title = "Org Setup";
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -61,6 +118,26 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            {/* Author: Puran */}
+            {/* Impact: per-route back arrow before the sticky title */}
+            {/* Reason: detail / edit screens (Product Details, Edit */}
+            {/*         Member, etc.) need a "go back" affordance in the */}
+            {/*         outer bar matching the Figma. router.back() is */}
+            {/*         intentionally used (not router.push) so the user */}
+            {/*         lands on whatever screen they came from rather */}
+            {/*         than a hard-coded parent. */}
+            {showBack && (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+                aria-label="Go back"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
             <span className="text-sm font-bold text-slate-900 truncate">
               {title}
             </span>
