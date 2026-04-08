@@ -396,6 +396,12 @@ const draftBrandingSchema = z
  * Mirrors PROJECT_RULES.md §4.6 (validate every request) and §8.3 (client
  * + server validation).
  */
+// Author: samir
+// Impact: identifies which onboarding step the client is completing on a Save & Continue
+// Reason: the API needs to flip the right entry in OrgSetup.completedSteps when mode='complete'. Making it explicit (rather than guessing from which sections are present) means future steps that share sections — or pages that send extra context — can't accidentally tick the wrong step.
+export const orgSetupCompletedStepValues = ["org-info", "branding"] as const;
+export type OrgSetupCompletedStep = (typeof orgSetupCompletedStepValues)[number];
+
 export const orgSetupSaveSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("draft"),
@@ -407,6 +413,12 @@ export const orgSetupSaveSchema = z.discriminatedUnion("mode", [
   z
     .object({
       mode: z.literal("complete"),
+      // Author: samir
+      // Impact: required on every Save & Continue payload
+      // Reason: server merges this id into OrgSetup.completedSteps so the stepper tick reflects an explicit user action, not a Zod side effect
+      completedStep: z.enum(orgSetupCompletedStepValues, {
+        message: "completedStep must be one of: org-info, branding",
+      }),
       business: businessInfoSchema.optional(),
       warehouse: warehouseLocationSchema.optional(),
       payment: paymentInvoiceSchema.optional(),
