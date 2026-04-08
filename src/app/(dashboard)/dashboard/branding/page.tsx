@@ -26,10 +26,6 @@ import { useMembers } from '@/hooks/team/useMembers';
 import { useInvitations } from '@/hooks/team/useInvitations';
 import { ApiError } from '@/lib/api-client';
 import {
-  brandingSchema,
-  businessInfoSchema,
-  warehouseLocationSchema,
-  paymentInvoiceSchema,
   type BrandingInput,
 } from '@/lib/validation/org-setup';
 import type { OrgSetupResponse } from '@/app/api/org-setup/route';
@@ -46,6 +42,10 @@ type SaveBrandingPayload =
     }
   | {
       mode: 'complete';
+      // Author: samir
+      // Impact: tells the server which onboarding step to tick on completion
+      // Reason: server merges this into OrgSetup.completedSteps; the stepper tick is only allowed to flip on via Save & Continue
+      completedStep: 'branding';
       branding: BrandingInput;
     };
 
@@ -193,11 +193,10 @@ export default function BrandingPage() {
 
   // Old Author: samir
   // New Author: samir
-  // Impact: branding completion now runs the strict Zod schema as the source of truth
-  // Reason: replaces the hand-rolled "are these four fields filled" structural check. Using brandingSchema.safeParse means the stepper tick can never fall out of sync with the form's actual validation rules.
+  // Impact: branding completion is now driven by the persisted completedSteps array
+  // Reason: previously this re-ran brandingSchema.safeParse on whatever was saved, which meant Save & Draft of valid data also ticked the step. Reading from completedSteps means only an explicit Save & Continue can flip the green tick on; drafts never can.
   const brandingComplete = useMemo(() => {
-    if (!data) return false;
-    return brandingSchema.safeParse(data.branding).success;
+    return data?.completedSteps?.includes('branding') ?? false;
   }, [data]);
 
   // Author: samir
@@ -214,15 +213,10 @@ export default function BrandingPage() {
 
   // Old Author: samir
   // New Author: samir
-  // Impact: Org Info completion = ALL three sections (business + warehouse + payment) pass strict Zod validation, identical logic to org-setup/page.tsx
-  // Reason: the org-setup page owns three forms, so ticking Org Info as done requires every section to validate. Using the schemas directly keeps both pages locked to the same source of truth.
+  // Impact: Org Info completion is now driven by the persisted completedSteps array
+  // Reason: same fix as brandingComplete — re-running Zod on saved data ticked steps that were only saved as drafts. Reading from completedSteps means the org-setup page must be explicitly Save & Continue'd to flip this tick on.
   const orgInfoComplete = useMemo(() => {
-    if (!data) return false;
-    return (
-      businessInfoSchema.safeParse(data.business).success &&
-      warehouseLocationSchema.safeParse(data.warehouse).success &&
-      paymentInvoiceSchema.safeParse(data.payment).success
-    );
+    return data?.completedSteps?.includes('org-info') ?? false;
   }, [data]);
 
   // Author: Puran
@@ -311,7 +305,7 @@ export default function BrandingPage() {
     }
 
     saveMutation.mutate(
-      { mode: 'complete', branding },
+      { mode: 'complete', completedStep: 'branding', branding },
       {
         onSuccess: () => {
           toast.success('Branding saved. Continuing to products.');

@@ -32,7 +32,11 @@ import {
   type AuthContext,
 } from "@/server/lib/auth/guards";
 import { logger } from "@/server/lib/logger";
-import { orgSetupSaveSchema } from "@/lib/validation/org-setup";
+import {
+  orgSetupSaveSchema,
+  orgSetupCompletedStepValues,
+  type OrgSetupCompletedStep,
+} from "@/lib/validation/org-setup";
 import { OrgSetupStatus } from "@/generated/prisma/enums";
 import type { InputJsonValue } from "@/generated/prisma/internal/prismaNamespace";
 // Author: samir
@@ -65,7 +69,35 @@ export interface OrgSetupResponse {
   warehouse: OrgSetupWarehouseSection | null;
   payment: OrgSetupPaymentSection | null;
   branding: OrgSetupBrandingSection | null;
+  // Author: samir
+  // Impact: pages read this list to decide whether to render the green tick on a step
+  // Reason: completion is no longer derived by re-running Zod on saved data — only an explicit Save & Continue mutates this list, so the tick mirrors the user's intent
+  completedSteps: OrgSetupCompletedStep[];
   updatedAt: string;
+}
+
+/**
+ * Narrows a Prisma Json value to a string array of recognised step ids.
+ * Anything mis-shaped (legacy nulls, scalars, unknown ids) collapses to
+ * an empty array — defensive against older rows that pre-date the column.
+ *
+ * @author samir
+ * @created 2026-04-08
+ * @module Module A - Org Setup
+ */
+function asCompletedSteps(value: unknown): OrgSetupCompletedStep[] {
+  if (!Array.isArray(value)) return [];
+  const known = new Set<string>(orgSetupCompletedStepValues);
+  const out: OrgSetupCompletedStep[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string" && known.has(entry)) {
+      // Avoid duplicates if legacy data already had repeats.
+      if (!out.includes(entry as OrgSetupCompletedStep)) {
+        out.push(entry as OrgSetupCompletedStep);
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -108,6 +140,7 @@ async function loadOrgSetup(orgId: string | null): Promise<OrgSetupResponse | nu
       warehouse: true,
       payment: true,
       branding: true,
+      completedSteps: true,
       updatedAt: true,
     },
   });
@@ -120,6 +153,7 @@ async function loadOrgSetup(orgId: string | null): Promise<OrgSetupResponse | nu
     warehouse: asJsonObject<WarehouseFormData>(row.warehouse),
     payment: asJsonObject<PaymentFormData>(row.payment),
     branding: asJsonObject<BrandingFormData>(row.branding),
+    completedSteps: asCompletedSteps(row.completedSteps),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -171,8 +205,8 @@ export async function GET(req: Request): Promise<Response> {
  * PUT /api/org-setup — upserts the caller's org setup.
  *
  * Body (discriminated on `mode`):
- * - `{ mode: "draft",    business?, warehouse?, payment? }` — loose, partial
- * - `{ mode: "complete", business, warehouse, payment }`   — strict
+ * - `{ mode: "draft",    business?, warehouse?, payment?, branding? }` — loose, partial
+ * - `{ mode: "complete", completedStep, business?, warehouse?, payment?, branding? }` — strict
  *
  * Side effects:
  * - If the user has no Organization yet, one is created and linked. The
@@ -181,8 +215,11 @@ export async function GET(req: Request): Promise<Response> {
  *   This is the only endpoint in the app that may create an org for a
  *   logged-in user, which is why it does NOT use requireOrg.
  * - Upserts the OrgSetup row keyed by the resulting orgId.
- * - Draft mode never downgrades status. Complete mode sets status to
- *   COMPLETE.
+ * - Draft mode never downgrades status and never touches completedSteps.
+ * - Complete mode sets status to COMPLETE and merges `completedStep` into
+ *   the persisted completedSteps array (idempotent — duplicates are
+ *   collapsed). Drafts never tick a step on the stepper; only an explicit
+ *   Save & Continue can.
  *
  * Responses:
  * - 200 { success: true, data: OrgSetupResponse }
@@ -342,22 +379,43 @@ export async function PUT(req: Request): Promise<Response> {
     //
     // - Draft mode: write whatever the client sent, keep the existing
     //   status (DRAFT for new rows, possibly COMPLETE if the user is
-    //   saving changes to an already-completed setup).
-    // - Complete mode: write the validated data and flip status to
-    //   COMPLETE.
+    //   saving changes to an already-completed setup), and DO NOT touch
+    //   completedSteps — drafts must never tick a step on the stepper.
+    // - Complete mode: write the validated data, flip status to COMPLETE,
+    //   and merge the explicit completedStep id into completedSteps.
     const nowIso = new Date();
+
+    // Single existing-row read used by both branches below — saves a
+    // round trip on draft writes that previously fetched only `status`.
+    // Author: samir
+    // Impact: also pull completedSteps so the merge is idempotent and
+    //         drafts never downgrade an already-ticked step.
+    // Reason: feature requirement — only Save & Continue may flip the
+    //         tick on, and once flipped it stays on.
+    const existing = await db.orgSetup.findUnique({
+      where: { orgId },
+      select: { status: true, completedSteps: true },
+    });
+
     let newStatus: OrgSetupStatus;
     if (payload.mode === "complete") {
       newStatus = OrgSetupStatus.COMPLETE;
     } else {
       // Preserve prior status on draft writes so users who already
       // completed setup don't get silently downgraded when they edit.
-      const existing = await db.orgSetup.findUnique({
-        where: { orgId },
-        select: { status: true },
-      });
       newStatus = existing?.status ?? OrgSetupStatus.DRAFT;
     }
+
+    // Compute the new completedSteps array.
+    // - Draft: identical to the existing list (zero churn so the JSON
+    //   column doesn't get rewritten with a different ordering).
+    // - Complete: union of existing entries + the explicit completedStep
+    //   from the payload, deduped, in stable insertion order.
+    const previousCompleted = asCompletedSteps(existing?.completedSteps);
+    const completedSteps: OrgSetupCompletedStep[] =
+      payload.mode === "complete" && !previousCompleted.includes(payload.completedStep)
+        ? [...previousCompleted, payload.completedStep]
+        : previousCompleted;
 
     // Prisma Json columns: passing `undefined` means "don't touch this
     // field" on update, which is what we want when a request omits a
@@ -379,6 +437,7 @@ export async function PUT(req: Request): Promise<Response> {
         warehouse,
         payment,
         branding,
+        completedSteps: completedSteps as InputJsonValue,
       },
       update: {
         status: newStatus,
@@ -386,6 +445,7 @@ export async function PUT(req: Request): Promise<Response> {
         warehouse,
         payment,
         branding,
+        completedSteps: completedSteps as InputJsonValue,
         updatedAt: nowIso,
       },
       select: {
@@ -394,6 +454,7 @@ export async function PUT(req: Request): Promise<Response> {
         warehouse: true,
         payment: true,
         branding: true,
+        completedSteps: true,
         updatedAt: true,
       },
     });
@@ -412,6 +473,7 @@ export async function PUT(req: Request): Promise<Response> {
       warehouse: asJsonObject<WarehouseFormData>(saved.warehouse),
       payment: asJsonObject<PaymentFormData>(saved.payment),
       branding: asJsonObject<BrandingFormData>(saved.branding),
+      completedSteps: asCompletedSteps(saved.completedSteps),
       updatedAt: saved.updatedAt.toISOString(),
     });
     response.headers.set("Cache-Control", "private, no-store");

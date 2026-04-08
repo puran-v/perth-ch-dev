@@ -58,16 +58,20 @@ model Organization {
 // colours (primary + accent hex), and email sender identity (from name /
 // from email / reply-to + DNS status stub).
 model OrgSetup {
-  id        String         @id @default(cuid())
-  orgId     String         @unique
-  status    OrgSetupStatus @default(DRAFT)
-  business  Json?
-  warehouse Json?
-  payment   Json?
-  branding  Json?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  deletedAt DateTime?
+  id             String         @id @default(cuid())
+  orgId          String         @unique
+  status         OrgSetupStatus @default(DRAFT)
+  business       Json?
+  warehouse      Json?
+  payment        Json?
+  branding       Json?
+  // Author: samir
+  // Impact: tracks which onboarding steps the user has explicitly completed via Save & Continue
+  // Reason: the stepper's green tick used to be derived by re-running Zod on saved data, which meant Save & Draft of valid data also ticked the step. Per-step completion is now an explicit signal — only Save & Continue mutates this array; drafts never downgrade it.
+  completedSteps Json           @default("[]")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
 
   org Organization @relation(fields: [orgId], references: [id])
 
