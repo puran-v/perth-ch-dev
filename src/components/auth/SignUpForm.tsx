@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { EmailIcon, UserIcon, LockIcon } from "@/components/ui/Icons";
 import { toast } from "react-toastify";
 import { useOAuth } from "@/hooks/useOAuth";
+import { writeSignupRememberMePreference } from "@/lib/auth-client";
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's toast with OAuth Google button + real signup API call
@@ -131,6 +132,14 @@ export default function SignUpForm() {
         }
         return;
       }
+
+      // Author: samir
+      // Impact: stash the Remember Me choice in localStorage before redirecting to verify-email
+      // Reason: the signup API doesn't create a session, so the preference can't ride along on a
+      //         cookie. Persisting it client-side lets LoginForm pre-check the box on the user's
+      //         first login after they verify their email. The helper handles SSR + private-mode
+      //         localStorage failures so it can never block signup.
+      writeSignupRememberMePreference(rememberMe);
 
       // Success — toast + redirect to verify-email
       toast.success("Account created! Please check your email for the verification code.");
