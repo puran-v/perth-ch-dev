@@ -957,17 +957,18 @@ function AddOnGroupBlock({
             </option>
           ))}
         </StyledSelect>
+        {/* Author: Puran */}
+        {/* Impact: removed the "Customer visible" text label next to the */}
+        {/*         switch — toggle stands alone now */}
+        {/* Reason: client requested the label text be removed; the */}
+        {/*         switch state itself communicates the on/off, and */}
+        {/*         the aria-label keeps screen readers informed. */}
         <div className="flex items-center justify-between gap-2 lg:justify-end">
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={group.customerVisible}
-              onChange={() => onChange("customerVisible", !group.customerVisible)}
-              ariaLabel={`Customer visible — ${group.name || "untitled group"}`}
-            />
-            <span className="text-xs text-slate-600 whitespace-nowrap">
-              Customer visible
-            </span>
-          </div>
+          <Switch
+            checked={group.customerVisible}
+            onChange={() => onChange("customerVisible", !group.customerVisible)}
+            ariaLabel={`Customer visible — ${group.name || "untitled group"}`}
+          />
           <FilledRemoveButton
             onClick={onRemove}
             label={`Remove group ${group.name || "untitled"}`}
