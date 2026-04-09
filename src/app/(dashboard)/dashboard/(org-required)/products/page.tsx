@@ -34,8 +34,9 @@ import { ModuleGuard } from "@/components/auth/ModuleGuard";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { MOCK_PRODUCTS } from "@/lib/mock-products";
-import type { Product, ProductStats, ProductStatus } from "@/types/products";
+import { useProductList } from "@/hooks/products/useProducts";
+import { useCategories } from "@/hooks/products/useCategories";
+import type { ProductRow, ProductStats, ProductStatus } from "@/types/products";
 
 // ─── Page entry ────────────────────────────────────────────────────────
 
@@ -59,7 +60,25 @@ export default function ProductsPage() {
  */
 function ProductsCatalogue() {
   const router = useRouter();
-  const products = MOCK_PRODUCTS;
+
+  // Author: Puran
+  // Impact: real catalogue fetch via React Query
+  // Reason: replaces MOCK_PRODUCTS — when a save lands on the editor
+  //         page the products cache is invalidated and this list
+  //         refetches automatically.
+  const { data, isLoading, error } = useProductList();
+  const products: ProductRow[] = useMemo(() => data ?? [], [data]);
+
+  // Author: Puran
+  // Impact: stat counts the org's master category list, not the
+  //         distinct values in products
+  // Reason: master list is the truth — counting distinct strings
+  //         double-counted casing variants and undercounted empty
+  //         categories that exist but have no products yet. The
+  //         hook is cached for 5 min so the page hits the network
+  //         once and reuses the data with the editor combobox.
+  const { data: categoriesData } = useCategories();
+  const allCategories = useMemo(() => categoriesData ?? [], [categoriesData]);
 
   // Author: Puran
   // Impact: derive the four stats card numbers from the product list
@@ -67,13 +86,17 @@ function ProductsCatalogue() {
   //         the list grows past a single page the backend can return
   //         these counts directly via /api/orgs/current/products/stats.
   const stats: ProductStats = useMemo(() => {
-    const categories = new Set(products.map((p) => p.category)).size;
     const needsPricing = products.filter((p) => p.status === "NO_PRICE").length;
     const inactive = products.filter(
       (p) => p.status === "INACTIVE" || p.status === "MAINTENANCE",
     ).length;
-    return { total: products.length, categories, needsPricing, inactive };
-  }, [products]);
+    return {
+      total: products.length,
+      categories: allCategories.length,
+      needsPricing,
+      inactive,
+    };
+  }, [products, allCategories.length]);
 
   // ── Action handlers ──────────────────────────────────────────────────
   //
@@ -89,7 +112,7 @@ function ProductsCatalogue() {
     router.push("/dashboard/csv-import");
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: ProductRow) => {
     router.push(`/dashboard/products/${product.id}/edit`);
   };
 
@@ -103,14 +126,18 @@ function ProductsCatalogue() {
 
   // Sample category preview shown in the Categories stat card. Slicing
   // here keeps the card compact even when the org has many categories.
+  // Author: Puran
+  // Impact: previews from the master category list, not from product
+  //         strings, so empty categories also show
+  // Reason: aligns with stats.categories which now counts the master
+  //         list. Reading from `allCategories` instead of products
+  //         means a fresh org that just added "Inflatable" sees it
+  //         in the preview before they've added their first product.
   const categoryPreview = useMemo(() => {
-    const seen = new Set<string>();
-    for (const p of products) {
-      seen.add(p.category);
-      if (seen.size >= 2) break;
-    }
-    return Array.from(seen).join(", ") + (stats.categories > 2 ? "…" : "");
-  }, [products, stats.categories]);
+    const names = allCategories.slice(0, 2).map((c) => c.name);
+    const suffix = allCategories.length > 2 ? "…" : "";
+    return names.join(", ") + suffix;
+  }, [allCategories]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -176,8 +203,25 @@ function ProductsCatalogue() {
           </div>
         </div>
 
-        {/* Body — empty state OR table+cards */}
-        {products.length === 0 ? (
+        {/* Body — loading OR error OR empty state OR table+cards */}
+        {isLoading ? (
+          <div className="px-5 py-10 sm:px-6">
+            <div className="space-y-3 animate-pulse">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-14 rounded-xl bg-slate-100" />
+              ))}
+            </div>
+          </div>
+        ) : error ? (
+          <div className="px-5 py-10 sm:px-6 text-center">
+            <p className="text-sm font-semibold text-slate-900">
+              Could not load products
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {error.message}
+            </p>
+          </div>
+        ) : products.length === 0 ? (
           <EmptyState
             title="No products yet"
             description="Add your first product or import from CSV to get started."
@@ -231,7 +275,16 @@ function ProductsCatalogue() {
                           <p className="text-xs text-slate-400">{p.sku}</p>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600">
-                          {p.category}
+                          {/* Author: Puran */}
+                          {/* Impact: prefer the canonical name from the */}
+                          {/*         categoryRef join over the legacy */}
+                          {/*         free-text column */}
+                          {/* Reason: dual-write rollout — categoryRef is */}
+                          {/*         the truth once a row goes through */}
+                          {/*         the new combobox; the legacy string */}
+                          {/*         is the fallback for any row that */}
+                          {/*         hasn't been re-saved yet */}
+                          {p.categoryRef?.name ?? p.category}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600">
                           {p.quantity}
@@ -286,7 +339,9 @@ function ProductsCatalogue() {
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                     <div className="flex flex-col">
                       <dt className="text-slate-400">Category</dt>
-                      <dd className="text-slate-700">{p.category}</dd>
+                      <dd className="text-slate-700">
+                        {p.categoryRef?.name ?? p.category}
+                      </dd>
                     </div>
                     <div className="flex flex-col">
                       <dt className="text-slate-400">Qty</dt>
