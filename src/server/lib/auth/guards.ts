@@ -96,6 +96,8 @@ export type Permission =
   | "booking.delete"
   | "inventory.read"
   | "inventory.update"
+  | "product.read"
+  | "product.manage"
   | "warehouse.read"
   | "warehouse.update"
   | "finance.read"
@@ -304,6 +306,7 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
   MANAGER: [
     "booking.read", "booking.create", "booking.update", "booking.approve",
     "inventory.read", "inventory.update",
+    "product.read", "product.manage",
     "warehouse.read", "warehouse.update",
     "finance.read",
     "team.read", "team.update", "team.invite",
@@ -312,6 +315,7 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
   STAFF: [
     "booking.read",
     "inventory.read",
+    "product.read",
     "warehouse.read", "warehouse.update",
   ],
   DRIVER: [

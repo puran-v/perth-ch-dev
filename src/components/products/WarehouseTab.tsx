@@ -8,31 +8,36 @@
  *      Bay-shelf inputs + Location notes input. Used by Module C
  *      (Warehouse) to guide pickers via voice prompts.
  *   2. Post-job requirements card — title + "Add New Rules" button +
- *      list of toggleable post-job tasks (cleaning, charging,
- *      consumable check, inspection). Each toggle creates the
- *      corresponding task on return in Module C.
+ *      list of toggleable post-job tasks. Four built-in toggles
+ *      (cleaning, charging, consumable check, inspection) plus any
+ *      custom rules the user has added. Each toggle creates the
+ *      corresponding warehouse task on return in Module C.
  *   3. Substitutions card — locked amber warning explaining that
  *      substitution rules live in Module B and need to be configured
  *      there once Module B ships.
  *
- * Plus a small Add New Rules modal launched from the Post-job
- * requirements header. The modal lets the admin define an org-specific
- * custom post-job task with a name and description.
+ * The Add New Rules modal lets the admin define an org-specific
+ * custom post-job rule. The new rule joins the toggle list immediately
+ * and is persisted in the `customPostJobRules` text[] column on the
+ * product. Removing a custom rule (un-toggling it) deletes it from
+ * the array — there is no separate "off" state for custom rules.
  *
- * Backend status: same as the other product tabs — entirely client
- * state for V1. The Add New Rules modal stubs to a toast (and would
- * eventually append to a `customRules` array on the product).
+ * Backend status: WIRED. Every field is a controlled value owned by
+ * the parent `ProductEditorForm`, which round-trips them through
+ * `useCreateProduct` / `useUpdateProduct` to the products API.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Warehouse tab)
  */
 
-// Author: Puran
-// Impact: new dedicated component for the Warehouse tab + Add New
-//         Rules modal
-// Reason: same per-tab pattern as PricingTab / InventoryTab /
-//         OperationalTab — keep ProductEditorForm thin
+// Old Author: Puran
+// New Author: Puran
+// Impact: refactored from local-state placeholder into a controlled
+//         component owned by ProductEditorForm
+// Reason: matches the OperationalTab refactor — now that the API is
+//         live, the parent form needs to read every value at save
+//         time so buildPayload() can include them in the mutation.
 
 import { useState } from "react";
 import { toast } from "react-toastify";
@@ -41,74 +46,74 @@ import { Card } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 
-// ─── Types ─────────────────────────────────────────────────────────────
+// ─── Props ─────────────────────────────────────────────────────────────
 
-interface PostJobToggle {
-  id: string;
-  title: string;
-  description: string;
-  checked: boolean;
+/**
+ * Props for the controlled WarehouseTab. The parent owns every value
+ * (location strings, four built-in booleans, and the custom rules
+ * array) and supplies a setter for each. This component is purely
+ * presentation + interaction — no save logic, no fetching.
+ */
+export interface WarehouseTabProps {
+  warehouseZone: string;
+  onChangeWarehouseZone: (v: string) => void;
+
+  warehouseBayShelf: string;
+  onChangeWarehouseBayShelf: (v: string) => void;
+
+  warehouseLocationNotes: string;
+  onChangeWarehouseLocationNotes: (v: string) => void;
+
+  requiresCleaning: boolean;
+  onChangeRequiresCleaning: (v: boolean) => void;
+
+  requiresCharging: boolean;
+  onChangeRequiresCharging: (v: boolean) => void;
+
+  requiresConsumableCheck: boolean;
+  onChangeRequiresConsumableCheck: (v: boolean) => void;
+
+  requiresInspection: boolean;
+  onChangeRequiresInspection: (v: boolean) => void;
+
+  customPostJobRules: string[];
+  onChangeCustomPostJobRules: (v: string[]) => void;
 }
-
-const INITIAL_POST_JOB_TOGGLES: PostJobToggle[] = [
-  {
-    id: "cleaning",
-    title: "Requires cleaning after return",
-    description:
-      "Creates a cleaning task when this product returns from a job.",
-    checked: true,
-  },
-  {
-    id: "charging",
-    title: "Requires charging after return",
-    description:
-      "For battery-powered items — creates a charging task on return.",
-    checked: false,
-  },
-  {
-    id: "consumable",
-    title: "Requires consumable top-up check",
-    description:
-      "For items using consumables (sugar, CO2 etc.) — prompts a check on return.",
-    checked: false,
-  },
-  {
-    id: "inspection",
-    title: "Requires inspection before next hire",
-    description:
-      "Prompts a condition check before the item can be marked available again.",
-    checked: true,
-  },
-];
 
 // ─── Component ─────────────────────────────────────────────────────────
 
 /**
- * Renders the full Warehouse tab. State is owned locally for V1; lift
- * to the parent form via props when the API lands.
+ * Renders the full Warehouse tab as a controlled component. Every
+ * field is owned by ProductEditorForm — see WarehouseTabProps.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Warehouse tab)
  */
-export function WarehouseTab() {
-  // ── Location state ──────────────────────────────────────────────────
-  const [zone, setZone] = useState("");
-  const [bayShelf, setBayShelf] = useState("");
-  const [locationNotes, setLocationNotes] = useState("");
-
-  // ── Post-job toggles ────────────────────────────────────────────────
-  const [postJobToggles, setPostJobToggles] = useState<PostJobToggle[]>(
-    INITIAL_POST_JOB_TOGGLES,
-  );
-
-  const toggleRule = (id: string) => {
-    setPostJobToggles((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, checked: !t.checked } : t)),
-    );
-  };
+export function WarehouseTab(props: WarehouseTabProps) {
+  const {
+    warehouseZone,
+    onChangeWarehouseZone,
+    warehouseBayShelf,
+    onChangeWarehouseBayShelf,
+    warehouseLocationNotes,
+    onChangeWarehouseLocationNotes,
+    requiresCleaning,
+    onChangeRequiresCleaning,
+    requiresCharging,
+    onChangeRequiresCharging,
+    requiresConsumableCheck,
+    onChangeRequiresConsumableCheck,
+    requiresInspection,
+    onChangeRequiresInspection,
+    customPostJobRules,
+    onChangeCustomPostJobRules,
+  } = props;
 
   // ── Add New Rules modal state ───────────────────────────────────────
+  // Modal state stays local — it's purely UI affordance, the parent
+  // doesn't need to know whether the modal is open. The new rule is
+  // pushed into customPostJobRules via onChange when the user clicks Add.
   const [addRuleOpen, setAddRuleOpen] = useState(false);
   const [ruleName, setRuleName] = useState("");
   const [ruleDescription, setRuleDescription] = useState("");
@@ -130,23 +135,26 @@ export function WarehouseTab() {
       return;
     }
     // Author: Puran
-    // Impact: append the custom rule as a new toggle on the post-job list
-    // Reason: matches the Figma flow — the user creates a rule and it
-    //         immediately shows up in the toggle list as a new row,
-    //         pre-checked so they know it was added. When the API lands
-    //         this becomes a useApiMutation that round-trips through
-    //         /api/orgs/current/products/:id/post-job-rules.
-    setPostJobToggles((prev) => [
-      ...prev,
-      {
-        id: `custom-${Date.now().toString(36)}`,
-        title: trimmedName,
-        description: ruleDescription.trim() || "Custom post-job rule.",
-        checked: true,
-      },
-    ]);
+    // Impact: case-insensitive duplicate check before appending
+    // Reason: stops "Check tank" and "check tank" from coexisting in
+    //         the same product. The Description field is captured in
+    //         the modal but intentionally NOT persisted — V1 stores
+    //         titles only (Option A from the schema discussion).
+    if (
+      customPostJobRules.some(
+        (r) => r.toLowerCase() === trimmedName.toLowerCase()
+      )
+    ) {
+      toast.info(`"${trimmedName}" is already in the list.`);
+      return;
+    }
+    onChangeCustomPostJobRules([...customPostJobRules, trimmedName]);
     setAddRuleOpen(false);
     toast.success(`Rule "${trimmedName}" added.`);
+  };
+
+  const removeCustomRule = (rule: string) => {
+    onChangeCustomPostJobRules(customPostJobRules.filter((r) => r !== rule));
   };
 
   return (
@@ -164,23 +172,23 @@ export function WarehouseTab() {
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           <Input
             label="Zone"
-            value={zone}
-            onChange={(e) => setZone(e.target.value)}
+            value={warehouseZone}
+            onChange={(e) => onChangeWarehouseZone(e.target.value)}
             placeholder="e.g. A, B, Zone 1"
           />
           <Input
             label="Bay / shelf"
-            value={bayShelf}
-            onChange={(e) => setBayShelf(e.target.value)}
-            placeholder="e.g. A, B, Zone 1 Bay / shelf"
+            value={warehouseBayShelf}
+            onChange={(e) => onChangeWarehouseBayShelf(e.target.value)}
+            placeholder="e.g. Bay 3, Shelf B2"
           />
         </div>
 
         <div className="mt-4">
           <Input
             label="Location notes"
-            value={locationNotes}
-            onChange={(e) => setLocationNotes(e.target.value)}
+            value={warehouseLocationNotes}
+            onChange={(e) => onChangeWarehouseLocationNotes(e.target.value)}
             placeholder="e.g. Left wall near roller door, stacked on blue pallet"
           />
         </div>
@@ -195,22 +203,58 @@ export function WarehouseTab() {
           <p className="text-sm font-semibold text-slate-900">
             Post-job requirements
           </p>
-          <Button variant="primary" size="sm" onClick={handleOpenAddRule}>
+          {/* Author: Puran */}
+          {/* Impact: bumped from size="sm" (h-9) to size="md" (h-11) */}
+          {/* Reason: Figma shows the button at the same h-11 height */}
+          {/*         as the Create New Rule button on the Inventory */}
+          {/*         tab. The smaller h-9 looked undersized next to */}
+          {/*         the title text. */}
+          <Button variant="primary" size="md" onClick={handleOpenAddRule}>
             Add New Rules
           </Button>
         </div>
 
         {/* Toggle list — same shape as the Discounting card on the
-            Pricing tab. Uses the inline switch pattern shared across
-            the form. */}
+            Pricing tab. Built-in rules first, custom rules below. */}
         <div className="mt-3 flex flex-col divide-y divide-slate-100">
-          {postJobToggles.map((rule) => (
+          <ToggleRow
+            title="Requires cleaning after return"
+            description="Creates a cleaning task when this product returns from a job."
+            checked={requiresCleaning}
+            onChange={() => onChangeRequiresCleaning(!requiresCleaning)}
+          />
+          <ToggleRow
+            title="Requires charging after return"
+            description="For battery-powered items — creates a charging task on return."
+            checked={requiresCharging}
+            onChange={() => onChangeRequiresCharging(!requiresCharging)}
+          />
+          <ToggleRow
+            title="Requires consumable top-up check"
+            description="For items using consumables (sugar, CO2 etc.) — prompts a check on return."
+            checked={requiresConsumableCheck}
+            onChange={() =>
+              onChangeRequiresConsumableCheck(!requiresConsumableCheck)
+            }
+          />
+          <ToggleRow
+            title="Requires inspection before next hire"
+            description="Prompts a condition check before the item can be marked available again."
+            checked={requiresInspection}
+            onChange={() => onChangeRequiresInspection(!requiresInspection)}
+          />
+
+          {/* Custom rules — always considered "on" since their presence
+              in the array IS their on-state. Toggling off removes the
+              rule entirely. The label "Custom" disambiguates them from
+              the four presets above. */}
+          {customPostJobRules.map((rule) => (
             <ToggleRow
-              key={rule.id}
-              title={rule.title}
-              description={rule.description}
-              checked={rule.checked}
-              onChange={() => toggleRule(rule.id)}
+              key={rule}
+              title={rule}
+              description="Custom post-job rule. Toggle off to remove."
+              checked={true}
+              onChange={() => removeCustomRule(rule)}
             />
           ))}
         </div>
@@ -237,14 +281,18 @@ export function WarehouseTab() {
             label="Rule Name"
             value={ruleName}
             onChange={(e) => setRuleName(e.target.value)}
-            placeholder="Enter"
+            placeholder="e.g. Check water tank level"
             autoFocus
           />
+          {/* Description is captured for UX (helps the user think it
+              through) but intentionally NOT persisted in V1. The DB
+              column stores titles only — see the schema comment on
+              `customPostJobRules` in prisma/schema.prisma. */}
           <Input
-            label="Rule Description"
+            label="Rule Description (not saved)"
             value={ruleDescription}
             onChange={(e) => setRuleDescription(e.target.value)}
-            placeholder="Enter"
+            placeholder="Optional — for your own reference"
           />
           <Button variant="primary" size="lg" fullWidth onClick={handleAddRule}>
             <span className="flex items-center justify-center gap-2">
@@ -269,16 +317,10 @@ interface InfoBannerProps {
  * PROJECT_RULES.md §10.1) for the icon + body text. Same shape used
  * by the Inventory and Notes & Rules tabs so the form palette stays
  * uniform across product tabs.
- *
- * Author: Puran
- * Impact: switched icon + text from text-blue-700 → text-blue (brand)
- * Reason: client confirmed #0062FF is the highlight blue across the
- *         design — it's our brand `blue` token, not Tailwind's
- *         default blue-700. Always use the token.
  */
 function InfoBanner({ text }: InfoBannerProps) {
   return (
-    <div className="rounded-2xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="rounded-2xl border border-blue bg-blue-50 px-4 py-3">
       <div className="flex items-start gap-3">
         <svg
           aria-hidden="true"
@@ -294,9 +336,7 @@ function InfoBanner({ text }: InfoBannerProps) {
             d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
           />
         </svg>
-        <p className="text-xs sm:text-sm text-blue leading-relaxed">
-          {text}
-        </p>
+        <p className="text-xs sm:text-sm text-blue leading-relaxed">{text}</p>
       </div>
     </div>
   );
@@ -308,22 +348,10 @@ interface LockedBannerProps {
 
 /**
  * Locked banner shown on the Substitutions card. Indicates a feature
- * that's gated on a future module shipping. Uses the brand `mango`
- * token (#FF9F29 from PROJECT_RULES.md §10.1) so it reads as
- * "warning, not error" — the user isn't being blocked from doing
- * anything they could otherwise do.
- *
- * Author: Puran
- * Impact: switched from amber-* Tailwind palette to the brand mango
- *         token to match the Figma exactly
- * Reason: mango is in the design system (§10.1) and the Figma colour
- *         picker confirmed #FF9F29. Using `bg-mango/10` for the tint
- *         + solid `border-mango` and `text-mango` keeps the banner
- *         on the design tokens instead of an arbitrary amber.
- *
- * @author Puran
- * @created 2026-04-07
- * @module Module A - Products (Warehouse tab)
+ * gated on a future module shipping. Uses the brand `mango` token
+ * (#FF9F29 from PROJECT_RULES.md §10.1) so it reads as "warning, not
+ * error" — the user isn't being blocked from doing anything they
+ * could otherwise do.
  */
 function LockedBanner({ text }: LockedBannerProps) {
   return (
@@ -343,9 +371,7 @@ function LockedBanner({ text }: LockedBannerProps) {
             d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
           />
         </svg>
-        <p className="text-xs sm:text-sm text-mango leading-relaxed">
-          {text}
-        </p>
+        <p className="text-xs sm:text-sm text-mango leading-relaxed">{text}</p>
       </div>
     </div>
   );
