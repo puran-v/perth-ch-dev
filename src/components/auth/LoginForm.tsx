@@ -10,11 +10,19 @@ import { useSearchParams } from "next/navigation";
 import { EmailIcon, LockIcon } from "@/components/ui/Icons";
 import { useAuth } from "@/hooks";
 import { useOAuth } from "@/hooks/useOAuth";
+import { consumeSignupRememberMePreference } from "@/lib/auth-client";
 import { toast } from "react-toastify";
 // Old Author: jay
 // New Author: Puran
 // Impact: merged samir's useAuth/toast with OAuth Google button + error handling from URL params
 // Reason: combined email/password login (with session storage) + social login (Google/Microsoft)
+
+// Author: samir
+// Impact: Remember Me checkbox is now wired to the API — checked = 30-day session, unchecked = 1-day session.
+//         Also reads a one-shot localStorage carry-over (consumeSignupRememberMePreference) written by SignUpForm so a
+//         user who picked Remember Me on signup gets the box pre-checked the first time they log in after verifying.
+// Reason: signup doesn't create a session, so the preference can't live in a server cookie. The helper in
+//         @/lib/auth-client encapsulates the localStorage key + try/catch so the two forms can't drift on the contract.
 
 /**
  * Login form with email/password and social login (Google).
@@ -68,6 +76,20 @@ export default function LoginForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Author: samir
+  // Impact: pre-check the Remember Me box if the user opted in during signup.
+  //         The helper reads-and-removes the localStorage key so the carry-over
+  //         is one-shot — a different user logging in on the same machine will
+  //         not inherit the previous user's choice.
+  // Reason: signup happens before any session exists, so the user's intent has
+  //         to live somewhere outside a server cookie until first login.
+  useEffect(() => {
+    const carriedOver = consumeSignupRememberMePreference();
+    if (carriedOver === true) {
+      setRememberMe(true);
+    }
+  }, []);
+
   /**
    * Client-side validation before hitting the API.
    * Matches backend loginSchema rules for immediate feedback.
@@ -113,7 +135,7 @@ export default function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       const data = await res.json();
