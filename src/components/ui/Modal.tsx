@@ -25,6 +25,18 @@ interface ModalProps {
   description?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /**
+   * Optional inline action rendered in the header row, between the
+   * title block and the close button. Used by feature modals that need
+   * a primary affordance next to the title (e.g. CSV mapping guide's
+   * "Download template CSV" button) without baking it into the body.
+   *
+   * Author: samir
+   * Impact: lets the CSV Mapping Guide modal mount the Download button
+   *         in the header without forking the Modal primitive.
+   * Reason: §11 / shared-primitive rule — extend, don't duplicate.
+   */
+  headerAction?: React.ReactNode;
   size?: "sm" | "md" | "lg";
   closeOnBackdrop?: boolean;
 }
@@ -58,6 +70,7 @@ export function Modal({
   description,
   children,
   footer,
+  headerAction,
   size = "md",
   closeOnBackdrop = true,
 }: ModalProps) {
@@ -108,6 +121,13 @@ export function Modal({
               <p className="mt-1 text-sm text-slate-500">{description}</p>
             )}
           </div>
+          {/* Author: samir */}
+          {/* Impact: optional inline action rendered between the title block and close X */}
+          {/* Reason: lets feature modals (e.g. CSV Mapping Guide → Download template CSV) */}
+          {/*         mount a primary action next to the title without forking this primitive */}
+          {headerAction && (
+            <div className="shrink-0 self-center">{headerAction}</div>
+          )}
           <button
             onClick={onClose}
             aria-label="Close modal"

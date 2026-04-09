@@ -1,0 +1,9 @@
+name,daily_rate,sku,category,description,weekly_rate,total_quantity,weight_kg,length_cm,width_cm,height_cm,setup_minutes,packdown_minutes,power_required,age_group_min,age_group_max,max_occupancy,safety_notes,tags
+Castle Combo XL,250.00,BCH-001,Bouncy Castles,Large 5x5m bouncy castle with side slide,1200.00,3,180.50,500,500,420,30,20,yes,3,12,8,Adult supervision required at all times,"featured,kids,birthday"
+Princess Castle,180.00,BCH-005,Bouncy Castles,Pink themed castle with turret design,900.00,2,140.00,400,400,380,25,15,yes,3,10,6,,"kids,princess"
+Triple Lane Slide,320.00,SLD-014,Slides,Three-lane racing slide with safety mat,1500.00,1,220.00,800,400,500,40,25,yes,5,14,3,Maximum 1 person per lane,"featured,slides"
+Mega Slide,420.00,SLD-020,Slides,Massive 8m tall slide with climbing wall,2000.00,1,280.00,600,400,800,60,40,yes,8,16,4,Adult supervision and safety briefing required,"featured,slides,extreme"
+6m Marquee,180.00,MRQ-006,Marquees,Standard 6x6m marquee with side walls,800.00,5,95.00,600,600,300,45,30,no,,,,,marquee
+9m Marquee,260.00,MRQ-009,Marquees,Premium 9x9m marquee with windows,1200.00,3,140.00,900,900,350,60,40,no,,,,Anchor with provided weights in windy conditions,"marquee,premium"
+Popcorn Machine,75.00,ENT-001,Add-ons,Commercial popcorn machine with 50 servings,300.00,4,15.00,60,40,80,5,5,yes,,,,,"add-on,party"
+Snow Machine,95.00,,Add-ons,Outdoor snow machine - water tank included,400.00,2,22.00,55,35,75,10,10,yes,,,,Use only with grounded power outlet,"add-on,party"
