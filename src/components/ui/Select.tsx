@@ -206,7 +206,7 @@ export function Select({
           if (!disabled) setOpen((prev) => !prev);
         }}
         className={[
-          "flex items-center gap-2 rounded-3xl border bg-white px-4 h-12 transition-colors w-full text-left cursor-pointer",
+          "flex items-center gap-2 rounded-3xl border bg-white px-4 h-12 transition-colors w-full text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40",
           disabled
             ? "bg-slate-50 text-slate-400 cursor-not-allowed border-gray-200"
             : error
@@ -252,7 +252,7 @@ export function Select({
                   aria-selected={isSelected}
                   onClick={() => handleSelect(opt.value)}
                   className={[
-                    "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left text-sm transition-colors cursor-pointer",
+                    "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left text-sm transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40",
                     isSelected ? "bg-[#1a2f6e]/5" : "hover:bg-gray-100",
                   ].join(" ")}
                 >

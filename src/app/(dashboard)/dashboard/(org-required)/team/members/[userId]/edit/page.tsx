@@ -26,7 +26,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import Button from "@/components/ui/Button";
-import { StyledSelect } from "@/components/ui/StyledSelect";
+// Author: samir
+// Impact: switched the Role picker from StyledSelect (native <select>) to the shared custom Select primitive
+// Reason: visual parity with the GST/Currency dropdowns on the org-setup page and the matching Role picker on the Invite tab — same shared component everywhere prevents styling drift.
+import { Select } from "@/components/ui/Select";
 import { useMembers, useUpdateMember } from "@/hooks/team/useMembers";
 import { useRoles } from "@/hooks/team/useRoles";
 import { ApiError } from "@/lib/api-client";
@@ -251,19 +254,19 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
           </div>
           <div>
             <p className="mb-1.5 text-sm font-medium text-slate-700">Role</p>
-            <StyledSelect
+            {/* Author: samir */}
+            {/* Impact: same shared <Select> primitive as GST/Currency on org-setup and the Role picker on the Invite tab */}
+            {/* Reason: the parent <p> already renders the "Role" label so `label` is intentionally omitted from Select to avoid duplicating it. The "(System)" suffix on system roles is preserved via the option label. */}
+            <Select
               value={roleId}
-              onChange={(e) => setRoleId(e.target.value)}
+              onChange={(value) => setRoleId(value)}
+              options={(roles ?? []).map((r) => ({
+                value: r.id,
+                label: r.isSystem ? `${r.name} (System)` : r.name,
+              }))}
+              placeholder="Select role…"
               disabled={updateMember.isPending}
-            >
-              <option value="">Select role…</option>
-              {roles?.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                  {r.isSystem ? " (System)" : ""}
-                </option>
-              ))}
-            </StyledSelect>
+            />
             {roles && roles.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
                 No roles available.{" "}
@@ -310,17 +313,18 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
           </p>
         </div>
 
-        {/* Action row.
-            Mobile: Save (primary) stacks on top, Remove below — primary
-            action gets thumb priority.
-            Desktop: Remove (secondary) on the left, Save on the right —
-            classic destructive-left / primary-right pattern. */}
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Old Author: Puran */}
+        {/* New Author: samir */}
+        {/* Impact: Save Changes now sits next to Remove on the left edge of the card instead of the right */}
+        {/* Reason: client requested the two actions live together rather than at opposite corners */}
+        {/* Mobile: Save (primary) still stacks on top via flex-col-reverse so the primary action gets thumb priority. */}
+        {/* Desktop: Remove first, then Save Changes immediately next to it — both left-aligned with gap-3 between them. */}
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
           <button
             type="button"
             onClick={handleRemove}
             disabled={updateMember.isPending}
-            className="inline-flex h-11 items-center justify-center rounded-full border border-red-200 bg-red-50 px-6 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-full border border-red-200 bg-red-50 px-6 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
           >
             Remove
           </button>

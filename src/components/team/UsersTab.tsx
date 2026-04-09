@@ -100,7 +100,7 @@ export function UsersTab() {
         <p className="mt-1 text-sm text-red-700">{error.message}</p>
         <button
           onClick={() => refetch()}
-          className="mt-3 text-sm font-medium text-[#1a2f6e] hover:underline cursor-pointer"
+          className="mt-3 text-sm font-medium text-[#1a2f6e] hover:underline cursor-pointer transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
         >
           Try again
         </button>
@@ -143,12 +143,12 @@ export function UsersTab() {
           <table className="w-full min-w-256">
             <thead className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="whitespace-nowrap px-6 py-3">Name</th>
-                <th className="whitespace-nowrap px-6 py-3">Email</th>
-                <th className="whitespace-nowrap px-6 py-3">Role</th>
-                <th className="whitespace-nowrap px-6 py-3">Last Active</th>
-                <th className="whitespace-nowrap px-6 py-3">Status</th>
-                <th className="whitespace-nowrap px-6 py-3 text-right">
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Name</th>
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Email</th>
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Role</th>
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Last Active</th>
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Status</th>
+                <th className="whitespace-nowrap text-black font-semibold px-6 py-3 text-right">
                   Actions
                 </th>
               </tr>
@@ -159,7 +159,7 @@ export function UsersTab() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <Avatar name={m.fullName} />
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm text-slate-600">
                         {m.fullName}
                       </p>
                     </div>
@@ -180,7 +180,7 @@ export function UsersTab() {
                     <div className="flex items-center justify-end gap-2">
                       <Link
                         href={`/dashboard/team/members/${m.id}/edit`}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
                       >
                         <PencilIcon />
                         Edit
@@ -188,7 +188,7 @@ export function UsersTab() {
                       <button
                         type="button"
                         onClick={() => setRevokingMember(m)}
-                        className="inline-flex h-9 items-center rounded-full border border-red-200 bg-red-50 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                        className="inline-flex h-9 items-center rounded-full border border-red-200 bg-red-50 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                       >
                         Revoke
                       </button>
@@ -232,7 +232,7 @@ export function UsersTab() {
             <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
               <Link
                 href={`/dashboard/team/members/${m.id}/edit`}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               >
                 <PencilIcon />
                 Edit
@@ -240,7 +240,7 @@ export function UsersTab() {
               <button
                 type="button"
                 onClick={() => setRevokingMember(m)}
-                className="inline-flex h-9 items-center rounded-full border border-red-200 bg-red-50 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                className="inline-flex h-9 items-center rounded-full border border-red-200 bg-red-50 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
               >
                 Revoke
               </button>

@@ -87,7 +87,7 @@ export function PasswordInput({ icon, ...props }: PasswordInputProps) {
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="cursor-pointer hover:text-gray-600 transition-colors"
+          className="cursor-pointer hover:text-gray-600 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
           aria-label={visible ? "Hide password" : "Show password"}
         >
           {EyeIcon()}

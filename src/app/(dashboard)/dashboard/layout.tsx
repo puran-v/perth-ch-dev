@@ -5,11 +5,49 @@
 
 "use client";
 
+import { usePathname } from "next/navigation";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
+// Author: samir
+// Impact: pathname-keyed title map so the sticky header reflects the current page
+// Reason: title was hardcoded to "Org Setup" — every page in the dashboard showed
+//         the wrong label. Listed longest-prefix first so /dashboard/team/roles
+//         falls through to the /dashboard/team entry, etc.
+const PAGE_TITLES: ReadonlyArray<readonly [string, string]> = [
+  ["/dashboard/org-setup", "Org Setup"],
+  ["/dashboard/branding", "Branding"],
+  ["/dashboard/team/roles", "Roles & Permissions"],
+  ["/dashboard/team", "Team & Users"],
+  ["/dashboard/products", "Products"],
+  ["/dashboard/bundles", "Bundles"],
+  ["/dashboard/pricing", "Pricing"],
+  ["/dashboard/quote-templates", "Quote Templates"],
+  ["/dashboard/csv-import", "CSV Import"],
+  ["/dashboard", "Dashboard"],
+];
+
+/**
+ * Resolve the sticky-header title from the current pathname. Falls back
+ * to "Dashboard" so an unmapped sub-route never renders an empty header.
+ *
+ * @author samir
+ * @created 2026-04-09
+ * @module Dashboard - Layout
+ */
+function resolvePageTitle(pathname: string | null): string {
+  if (!pathname) return "Dashboard";
+  for (const [prefix, title] of PAGE_TITLES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return title;
+    }
+  }
+  return "Dashboard";
+}
+
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { setMobileOpen } = useMobileSidebar();
+  const pathname = usePathname();
 
   function formatCurrentDate(): string {
     const now = new Date();
@@ -40,7 +78,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   const notifications = 12;
-  const title = "Org Setup";
+  // Author: samir
+  // Impact: title now follows the route instead of being hardcoded
+  // Reason: see PAGE_TITLES above — the sticky header was always "Org Setup"
+  const title = resolvePageTitle(pathname);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -54,7 +95,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             {/* Hamburger button — visible on mobile only */}
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Open menu"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -71,7 +112,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
           {notifications !== undefined && (
             <button
-              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Notifications"
             >
               <svg

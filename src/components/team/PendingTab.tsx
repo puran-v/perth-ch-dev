@@ -161,7 +161,7 @@ export function PendingTab() {
         <p className="mt-1 text-sm text-red-700">{error.message}</p>
         <button
           onClick={() => refetch()}
-          className="mt-3 text-sm font-medium text-[#1a2f6e] hover:underline cursor-pointer"
+          className="mt-3 text-sm font-medium text-[#1a2f6e] hover:underline cursor-pointer transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
         >
           Try again
         </button>
