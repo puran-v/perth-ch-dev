@@ -29,7 +29,7 @@ export function DashboardRecentActivity({
         {onViewAll && (
           <button
             onClick={onViewAll}
-            className="text-sm font-medium text-[#042E93] hover:text-[#031F66] transition-colors"
+            className="text-sm font-medium text-[#042E93] hover:text-[#031F66] transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#042E93]/40"
           >
             View all →
           </button>

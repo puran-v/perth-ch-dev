@@ -191,7 +191,7 @@ export default function VerifyEmailForm() {
               onClick={handleResend}
               disabled={resending || loading}
               className={[
-                "text-sm font-medium whitespace-nowrap transition-colors",
+                "text-sm font-medium whitespace-nowrap transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40",
                 resending || loading
                   ? "text-gray-400 cursor-not-allowed"
                   : "text-[#1a2f6e] hover:underline cursor-pointer",

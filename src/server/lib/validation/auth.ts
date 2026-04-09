@@ -63,6 +63,9 @@ export const resendVerificationSchema = z.object({
     .max(254, "Email must be 254 characters or less"),
 });
 
+// Author: samir
+// Impact: loginSchema now accepts an optional `rememberMe` boolean from the form
+// Reason: drives the session-cookie lifetime in createSession() — checked = 30-day session, unchecked = 1-day session. Optional + default(false) keeps the schema backwards-compatible with any caller that hasn't been updated yet.
 export const loginSchema = z.object({
   email: z
     .string()
@@ -74,6 +77,7 @@ export const loginSchema = z.object({
     .string()
     .min(1, "Password is required")
     .max(128, "Password must be 128 characters or less"),
+  rememberMe: z.boolean().optional().default(false),
 });
 
 export const forgotPasswordSchema = z.object({

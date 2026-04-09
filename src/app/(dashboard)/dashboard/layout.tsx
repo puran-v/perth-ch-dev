@@ -9,7 +9,8 @@ import { usePathname, useRouter } from "next/navigation";
 import AdminSidebarWrapper from "@/components/admin/AdminSidebarWrapper";
 import { MobileSidebarProvider, useMobileSidebar } from "@/components/admin/AdminSidebarWrapper";
 
-// Author: Puran
+// Old Author: Puran
+// New Author: Puran
 // Impact: derive sticky-header title from the current route instead of
 //         hard-coding "Org Setup" for every page; optional back arrow
 //         per route for detail / edit screens
@@ -32,10 +33,15 @@ interface RouteTitle {
   back?: boolean;
 }
 
+// Author: samir
+// Impact: kept Puran's regex-based map but used "Roles & Permissions" instead
+//         of just "Roles" for /dashboard/team/roles
+// Reason: matches the in-page heading on the Roles screen and is what the
+//         client asked for in the prior session
 const ROUTE_TITLES: RouteTitle[] = [
   { match: /^\/dashboard\/org-setup/, label: "Org Setup" },
   { match: /^\/dashboard\/branding/, label: "Branding" },
-  { match: /^\/dashboard\/team\/roles/, label: "Roles" },
+  { match: /^\/dashboard\/team\/roles/, label: "Roles & Permissions" },
   { match: /^\/dashboard\/team\/members\/[^/]+\/edit/, label: "Edit Member", back: true },
   { match: /^\/dashboard\/team\/members/, label: "Team & Users" },
   { match: /^\/dashboard\/team/, label: "Team & Users" },
@@ -111,7 +117,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             {/* Hamburger button — visible on mobile only */}
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Open menu"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -148,7 +154,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
           {notifications !== undefined && (
             <button
-              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Notifications"
             >
               <svg

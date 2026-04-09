@@ -30,7 +30,7 @@ export function SetupProgressCard({
       {/* Header row */}
       <div className="flex flex-wrap items-center justify-between gap-1 mb-3">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <span className="text-sm font-medium text-blue-600">
+        <span className="text-sm font-medium text-green-600 text-">
           {completedCount} / {totalCount} complete
         </span>
       </div>
