@@ -195,7 +195,7 @@ function WarehouseMultiSelect({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={[
-          'flex items-start gap-2 rounded-3xl border bg-white px-4 py-1.5 min-h-12 transition-colors cursor-pointer w-full text-left',
+          'flex items-start gap-2 rounded-3xl border bg-white px-4 py-1.5 min-h-12 transition-colors cursor-pointer w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40',
           error
             ? 'border-red-400 focus-within:ring-2 focus-within:ring-red-300'
             : open
@@ -259,7 +259,7 @@ function WarehouseMultiSelect({
                   aria-selected={isSelected}
                   onClick={() => toggleOption(opt.value)}
                   className={[
-                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left text-sm transition-colors cursor-pointer',
+                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left text-sm transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40',
                     isSelected ? 'bg-[#1a2f6e]/5' : 'hover:bg-gray-100',
                   ].join(' ')}
                 >
@@ -339,7 +339,7 @@ function TimePicker({ label, value, onChange, error }: TimePickerProps) {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={[
-          'flex items-center gap-2 rounded-full border bg-white px-4 h-12 transition-colors cursor-pointer w-full text-left',
+          'flex items-center gap-2 rounded-full border bg-white px-4 h-12 transition-colors cursor-pointer w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40',
           error
             ? 'border-red-400 focus-within:ring-2 focus-within:ring-red-300'
             : open
@@ -371,7 +371,7 @@ function TimePicker({ label, value, onChange, error }: TimePickerProps) {
               <button
                 type="button"
                 onClick={togglePeriod}
-                className="ml-2 px-2 py-0.5 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                className="ml-2 px-2 py-0.5 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               >
                 {parsed.period}
               </button>
@@ -388,7 +388,7 @@ function TimePicker({ label, value, onChange, error }: TimePickerProps) {
                       type="button"
                       onClick={() => selectHour(h)}
                       className={[
-                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40',
                         h === selectedHour
                           ? 'bg-[#1a2f6e] text-white'
                           : 'text-gray-700 hover:bg-gray-100',
@@ -413,7 +413,7 @@ function TimePicker({ label, value, onChange, error }: TimePickerProps) {
                       type="button"
                       onClick={() => selectMinute(m)}
                       className={[
-                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                        'h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40',
                         m === selectedMinute
                           ? 'bg-[#1a2f6e] text-white'
                           : 'text-gray-700 hover:bg-gray-100',
@@ -430,7 +430,7 @@ function TimePicker({ label, value, onChange, error }: TimePickerProps) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="mt-3 w-full h-9 rounded-full bg-[#1a2f6e] text-white text-sm font-medium hover:bg-[#1a2f6e]/90 transition-colors cursor-pointer"
+              className="mt-3 w-full h-9 rounded-full bg-[#1a2f6e] text-white text-sm font-medium hover:bg-[#1a2f6e]/90 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
             >
               Done
             </button>

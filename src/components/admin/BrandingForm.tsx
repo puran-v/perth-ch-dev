@@ -184,7 +184,10 @@ function LogoUploader({ value, onChange, error }: LogoUploaderProps) {
     if (file) readFile(file);
   };
 
-  const handleRemove = (e: React.MouseEvent) => {
+  // Author: samir
+  // Impact: now accepts both MouseEvent and the synthetic events fired by a real <button>
+  // Reason: the Remove control was migrated from <span role="button"> to <button>; the broader event type lets us drop the unsafe `as unknown as React.MouseEvent` cast at the call site
+  const handleRemove = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     onChange('');
     setLocalError(null);
@@ -247,21 +250,17 @@ function LogoUploader({ value, onChange, error }: LogoUploaderProps) {
             />
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-600 font-medium">Logo uploaded</span>
-              <span
-                role="button"
-                tabIndex={0}
+              {/* Author: samir */}
+              {/* Impact: real <button> instead of <span role="button"> — native Enter/Space handling, real focus ring, no manual keydown plumbing */}
+              {/* Reason: fixes an a11y bug where the span needed hand-rolled keyboard handling and didn't surface as a button to assistive tech */}
+              <button
+                type="button"
                 onClick={handleRemove}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleRemove(e as unknown as React.MouseEvent);
-                  }
-                }}
-                className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-600 px-2.5 py-1 text-xs font-medium hover:bg-red-100 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-600 px-2.5 py-1 text-xs font-medium hover:bg-red-100 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                 aria-label="Remove logo"
               >
                 Remove
-              </span>
+              </button>
             </div>
           </div>
         ) : (
@@ -554,7 +553,7 @@ export const BrandingForm = forwardRef<BrandingFormHandle, BrandingFormProps>(
                 <button
                   type="button"
                   onClick={handleVerifyDns}
-                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
                 >
                   Verify DNS
                 </button>

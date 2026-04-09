@@ -17,7 +17,8 @@
 // Impact: session guards + RBAC for all protected API routes
 // Reason: §6.3 pattern — every protected route needs auth + org + permission checks
 
-import { getSessionToken, validateSession } from "./session";
+import { cookies } from "next/headers";
+import { getSessionToken, validateSession, SESSION_COOKIE_NAME } from "./session";
 import { error } from "@/server/core/response";
 import type { UserRole } from "@/generated/prisma/enums";
 
@@ -110,21 +111,23 @@ export type Permission =
 // ── Session resolution ───────────────────────────────────────────────
 
 /**
- * Parses the session_token cookie, validates the session against the DB,
- * and returns a typed AuthContext. Returns null if not authenticated.
+ * Internal helper: validates a raw session token against the DB and
+ * builds the typed AuthContext. Returns null if the token is missing,
+ * the session is expired, or the row was soft-deleted.
  *
- * This is the single entry point for all session resolution in the app.
- * Reuses existing getSessionToken + validateSession from session.ts.
+ * Both getAppSession (API routes, takes a Request) and
+ * getServerComponentSession (server components, reads cookies() from
+ * next/headers) delegate here so the AuthContext shape and module
+ * resolution rules stay in one place.
  *
- * @param req - The incoming Request object
- * @returns AuthContext if authenticated, null otherwise
+ * @param token - The raw session token, or null when no cookie was present
+ * @returns AuthContext if the session validates, null otherwise
  *
- * @author Puran
- * @created 2026-04-03
+ * @author samir
+ * @created 2026-04-08
  * @module Auth - Guards
  */
-export async function getAppSession(req: Request): Promise<AuthContext | null> {
-  const token = getSessionToken(req);
+async function buildAuthContext(token: string | null): Promise<AuthContext | null> {
   if (!token) return null;
 
   const session = await validateSession(token);
@@ -162,6 +165,45 @@ export async function getAppSession(req: Request): Promise<AuthContext | null> {
     organizationRoleName: user.organizationRole?.name ?? null,
     modules,
   };
+}
+
+/**
+ * Parses the session_token cookie from a Request, validates the session
+ * against the DB, and returns a typed AuthContext. Returns null if not
+ * authenticated. Used by API route handlers.
+ *
+ * @param req - The incoming Request object
+ * @returns AuthContext if authenticated, null otherwise
+ *
+ * @author Puran
+ * @created 2026-04-03
+ * @module Auth - Guards
+ */
+export async function getAppSession(req: Request): Promise<AuthContext | null> {
+  return buildAuthContext(getSessionToken(req));
+}
+
+/**
+ * Server-component variant of getAppSession. Reads the session_token
+ * cookie via `cookies()` from next/headers (no Request object available
+ * inside server components / layouts) and returns the same typed
+ * AuthContext.
+ *
+ * Used by route group layouts that need to gate rendering on auth state
+ * BEFORE any HTML reaches the browser — specifically the (org-required)
+ * gate that prevents the flash of restricted content when an orphan
+ * user tries to navigate to /dashboard/branding etc.
+ *
+ * @returns AuthContext if authenticated, null otherwise
+ *
+ * @author samir
+ * @created 2026-04-08
+ * @module Auth - Guards
+ */
+export async function getServerComponentSession(): Promise<AuthContext | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;
+  return buildAuthContext(token);
 }
 
 // ── Guard helpers ────────────────────────────────────────────────────

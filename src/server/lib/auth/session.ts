@@ -16,7 +16,10 @@
 import crypto from "crypto";
 import { db } from "@/server/db/client";
 
-const SESSION_COOKIE_NAME = "session_token";
+// Author: samir
+// Impact: SESSION_COOKIE_NAME is now exported so server components can read the cookie via next/headers cookies() and call buildAuthContext()
+// Reason: the dashboard route group needs a server-side org-setup gate to prevent the flash of restricted content. That gate runs in a server component, which can't take a Request, so it needs to read the cookie name directly.
+export const SESSION_COOKIE_NAME = "session_token";
 
 // Old Author: Puran
 // New Author: samir

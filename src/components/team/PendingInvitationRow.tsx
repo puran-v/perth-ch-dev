@@ -118,8 +118,11 @@ export function PendingInvitationRow({
   };
 
   // Shared pill button class — h-9 across both actions so they line up
+  // Author: samir
+  // Impact: added cursor-pointer + focus-visible to the shared class so every desktop + mobile pill button picks them up at once
+  // Reason: all four call sites (resend/revoke × desktop/mobile) reuse this constant — fixing it here keeps the four buttons in sync without four separate edits
   const pillBtn =
-    "inline-flex h-9 items-center justify-center rounded-full border px-4 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex h-9 items-center justify-center rounded-full border px-4 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40";
 
   const busyClass = busy ? "pointer-events-none opacity-60" : "";
 

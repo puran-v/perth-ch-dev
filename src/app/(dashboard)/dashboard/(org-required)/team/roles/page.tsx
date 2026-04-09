@@ -196,14 +196,14 @@ export default function RolesPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleEdit(role)}
-                              className="text-xs font-medium text-[#1a2f6e] hover:underline cursor-pointer"
+                              className="text-xs font-medium text-[#1a2f6e] hover:underline cursor-pointer transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
                             >
                               Edit
                             </button>
                             <span className="text-slate-300">|</span>
                             <button
                               onClick={() => setDeletingRole(role)}
-                              className="text-xs font-medium text-red-600 hover:underline cursor-pointer"
+                              className="text-xs font-medium text-red-600 hover:underline cursor-pointer transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                             >
                               Delete
                             </button>
@@ -251,14 +251,14 @@ export default function RolesPage() {
                     <button
                       type="button"
                       onClick={() => handleEdit(role)}
-                      className="inline-flex h-9 items-center justify-center rounded-full border border-slate-200 px-4 text-xs font-medium text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+                      className="inline-flex h-9 items-center justify-center rounded-full border border-slate-200 px-4 text-xs font-medium text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
                     >
                       Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => setDeletingRole(role)}
-                      className="inline-flex h-9 items-center justify-center rounded-full border border-red-200 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+                      className="inline-flex h-9 items-center justify-center rounded-full border border-red-200 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     >
                       Delete
                     </button>

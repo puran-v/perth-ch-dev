@@ -161,7 +161,7 @@ function SidebarLogo() {
 
 function TenantSwitcher({ tenant }: { tenant: TenantInfo }) {
   return (
-    <button className="mx-4 mt-4 mb-2 flex w-[calc(100%-2rem)] items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/15">
+    <button className="mx-4 mt-4 mb-2 flex w-[calc(100%-2rem)] items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/15 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30">
       <div className="flex items-center gap-3">
         <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
         <div>
@@ -309,7 +309,7 @@ function UserProfile({ user }: { user: UserInfo }) {
       {user.onLogout && (
         <button
           onClick={user.onLogout}
-          className="shrink-0 p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="shrink-0 p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           aria-label="Log out"
           title="Log out"
         >
@@ -372,7 +372,7 @@ export default function AdminSidebar({
       <div className="lg:hidden flex justify-end px-4 pt-4">
         <button
           onClick={onMobileClose}
-          className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           aria-label="Close sidebar"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

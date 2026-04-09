@@ -16,14 +16,29 @@
 // Impact: removed the paste-chips mode + mode switch pills
 // Reason: client pared the invite UX down to add-row only for V1
 
-import { useState, useMemo } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { StyledSelect } from "@/components/ui/StyledSelect";
+// Author: samir
+// Impact: switched the Role picker from StyledSelect (native <select>) to the shared custom Select primitive
+// Reason: client wants the Role dropdown on the Invite tab to match the GST/Currency look on the org-setup page — that's the same shared Select component (rounded-3xl trigger, popover with check rows). Same component everywhere = no styling drift.
+import { Select } from "@/components/ui/Select";
 import { useRoles } from "@/hooks/team/useRoles";
 import { useCreateInvitations } from "@/hooks/team/useInvitations";
+// Author: samir
+// Impact: pull current user so the invite draft can be scoped per orgId in localStorage
+// Reason: persisting the in-progress Invite form needs a multi-tenant key — two tenants signed in on the same browser must never see each other's draft rows.
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { ApiError } from "@/lib/api-client";
 import type { BulkInviteInput } from "@/types/team";
 
@@ -32,6 +47,38 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Max invites per batch (matches backend bulkInviteSchema) */
 const MAX_INVITES = 50;
+
+// Author: samir
+// Impact: versioned localStorage key prefix for the per-org Invite draft
+// Reason: scoping by orgId stops two tenants on the same browser from seeing each
+//         other's drafts. The :v1 suffix lets us bump if we ever change the row shape
+//         without choking on old payloads.
+const DRAFT_STORAGE_KEY_PREFIX = "team-invite-draft:v1:";
+
+/** Per-row draft payload persisted to localStorage. id is excluded — it's
+ *  a render-only key and gets re-generated on restore. */
+interface DraftRowData {
+  firstName: string;
+  lastName: string;
+  jobTitle: string;
+  email: string;
+  organizationRoleId: string;
+  personalMessage: string;
+}
+
+/**
+ * Imperative handle exposed to the parent via ref. The parent's
+ * "Save & Draft" button calls saveDraft() so the in-progress invite rows
+ * survive tab switches and full-page navigations.
+ *
+ * @author samir
+ * @created 2026-04-09
+ * @module Team - Components
+ */
+export interface InviteTabHandle {
+  /** Persist the current row state to localStorage scoped by orgId. */
+  saveDraft: () => boolean;
+}
 
 interface InviteTabProps {
   /** Called after a successful batch so the parent can switch to the Pending tab */
@@ -70,15 +117,171 @@ const makeEmptyRow = (): InviteRow => ({
  * Main InviteTab component. Add-row only — each row has its own email + role
  * and can be removed independently. Personal message applies to the whole batch.
  *
+ * Old Author: Puran
+ * New Author: samir
+ * Impact: forwardRef + useImperativeHandle so the parent's Save & Draft button
+ *         can persist in-progress rows to localStorage without lifting state up.
+ * Reason: client wants the Invite tab's typed values to survive tab switches
+ *         and page revisits — InviteTab is unmounted when the user clicks
+ *         Users / Pending, so React state alone isn't enough.
+ *
  * @author Puran
  * @created 2026-04-06
  * @module Team - Components
  */
-export function InviteTab({ onInviteSuccess }: InviteTabProps) {
+export const InviteTab = forwardRef<InviteTabHandle, InviteTabProps>(
+  function InviteTab({ onInviteSuccess }, ref) {
   const { data: roles, isLoading: rolesLoading } = useRoles();
+  // Author: samir
+  // Impact: pulls the orgId so the localStorage draft key can be tenant-scoped
+  // Reason: same browser, two tenants → must never bleed drafts across orgs
+  const { data: currentUser } = useCurrentUser();
   const createInvitations = useCreateInvitations();
 
   const [rows, setRows] = useState<InviteRow[]>([makeEmptyRow()]);
+
+  // Author: samir
+  // Impact: tracks whether we've attempted the one-shot draft load yet
+  // Reason: useCurrentUser resolves async — we only want to hydrate the form
+  //         from localStorage once, and only if the user hasn't started typing
+  //         in the pristine row in the meantime
+  const draftLoadedRef = useRef(false);
+
+  // Author: samir
+  // Impact: derives the per-org localStorage key once orgId is known
+  // Reason: a null storageKey just means "we don't know which tenant yet" —
+  //         the load + persist helpers below treat that as a no-op
+  const storageKey = currentUser?.orgId
+    ? `${DRAFT_STORAGE_KEY_PREFIX}${currentUser.orgId}`
+    : null;
+
+  /**
+   * Load the saved draft (if any) on first render once orgId is known.
+   * Only hydrates a pristine form so we never clobber the user's
+   * in-flight typing if they started before the user query resolved.
+   *
+   * @author samir
+   * @created 2026-04-09
+   * @module Team - Components
+   */
+  useEffect(() => {
+    if (!storageKey || draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { rows?: DraftRowData[] };
+      const draftRows = parsed?.rows;
+      if (!draftRows || !Array.isArray(draftRows) || draftRows.length === 0) {
+        return;
+      }
+
+      // One-shot hydration from localStorage gated on the async
+      // useCurrentUser query — we can't lazy-init useState because
+      // orgId isn't available on first render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRows((prev) => {
+        // Don't overwrite typing — the form is "pristine" only when there
+        // is exactly one empty row and no field has been touched.
+        const isPristine =
+          prev.length === 1 &&
+          !prev[0].firstName &&
+          !prev[0].lastName &&
+          !prev[0].email &&
+          !prev[0].jobTitle &&
+          !prev[0].organizationRoleId &&
+          !prev[0].personalMessage;
+        if (!isPristine) return prev;
+
+        // Defensive: cap to MAX_INVITES so a tampered localStorage payload
+        // can't shove 10k rows into the form and freeze the page.
+        return draftRows.slice(0, MAX_INVITES).map((r) => ({
+          id: makeRowId(),
+          firstName: typeof r.firstName === "string" ? r.firstName : "",
+          lastName: typeof r.lastName === "string" ? r.lastName : "",
+          jobTitle: typeof r.jobTitle === "string" ? r.jobTitle : "",
+          email: typeof r.email === "string" ? r.email : "",
+          organizationRoleId:
+            typeof r.organizationRoleId === "string" ? r.organizationRoleId : "",
+          personalMessage:
+            typeof r.personalMessage === "string" ? r.personalMessage : "",
+        }));
+      });
+    } catch {
+      // Corrupt or unparseable draft — silently ignore. The user can re-enter
+      // and clicking Save & Draft will overwrite the bad payload.
+    }
+  }, [storageKey]);
+
+  /**
+   * Persist the current rows to localStorage. Strips fully-empty rows so
+   * we don't restore stale placeholders the user has cleared. Returns
+   * true on a successful write so the parent can decide whether to show
+   * a confirmation toast.
+   *
+   * @author samir
+   * @created 2026-04-09
+   * @module Team - Components
+   */
+  const persistDraft = useCallback((): boolean => {
+    if (!storageKey) return false;
+    try {
+      const draftRows: DraftRowData[] = rows
+        .filter(
+          (r) =>
+            r.firstName.trim().length > 0 ||
+            r.lastName.trim().length > 0 ||
+            r.email.trim().length > 0 ||
+            r.jobTitle.trim().length > 0 ||
+            r.organizationRoleId.length > 0 ||
+            r.personalMessage.trim().length > 0
+        )
+        .map((r) => ({
+          firstName: r.firstName,
+          lastName: r.lastName,
+          jobTitle: r.jobTitle,
+          email: r.email,
+          organizationRoleId: r.organizationRoleId,
+          personalMessage: r.personalMessage,
+        }));
+
+      // Empty form → wipe the slot rather than storing `{ rows: [] }`.
+      // Keeps localStorage tidy and means a reload of an emptied form
+      // won't show stale rows.
+      if (draftRows.length === 0) {
+        window.localStorage.removeItem(storageKey);
+        return true;
+      }
+
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({ rows: draftRows })
+      );
+      return true;
+    } catch {
+      // localStorage may be unavailable (privacy mode, quota exceeded).
+      // Fail silently — the parent's toast will still confirm "saved" and
+      // the user just won't get the draft back next session.
+      return false;
+    }
+  }, [rows, storageKey]);
+
+  // Expose the imperative handle so the parent can trigger persistence
+  // from its bottom Save & Draft button without lifting row state up.
+  // Re-creates whenever persistDraft's identity changes (rows / storageKey)
+  // so the captured closure always reads the latest values.
+  useImperativeHandle(ref, () => ({ saveDraft: persistDraft }), [persistDraft]);
+
+  /** Clear any persisted draft for this org — used after a successful send. */
+  const clearDraft = () => {
+    if (!storageKey) return;
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      // No-op — same reasoning as persistDraft.
+    }
+  };
 
   /**
    * Count of rows that are ready to send. A row is valid when first name,
@@ -99,6 +302,25 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
 
   const disabled =
     rolesLoading || createInvitations.isPending || validCount === 0;
+
+  // Author: samir
+  // Impact: drives the enabled state of the new "Clear all fields" button
+  // Reason: nothing to clear when the form is a single pristine row — keeping
+  //         the button greyed out in that state avoids a misleading no-op click
+  const hasAnyContent = useMemo(
+    () =>
+      rows.length > 1 ||
+      rows.some(
+        (r) =>
+          r.firstName.trim().length > 0 ||
+          r.lastName.trim().length > 0 ||
+          r.email.trim().length > 0 ||
+          r.jobTitle.trim().length > 0 ||
+          r.organizationRoleId.length > 0 ||
+          r.personalMessage.trim().length > 0
+      ),
+    [rows]
+  );
 
   /** Append an empty row (respects the 50-invite cap) */
   const addRow = () => {
@@ -130,6 +352,26 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
     );
+  };
+
+  /**
+   * Reset the entire invite form back to a single empty row and wipe the
+   * persisted draft. Fires immediately on click — no confirm prompt — per
+   * client request to keep the action snappy.
+   *
+   * @author samir
+   * @created 2026-04-09
+   * @module Team - Components
+   */
+  const handleClearAll = () => {
+    if (createInvitations.isPending) return;
+    if (!hasAnyContent) return;
+
+    setRows([makeEmptyRow()]);
+    // Wipe localStorage too — otherwise a refresh would re-hydrate the
+    // exact rows we just cleared and confuse the user.
+    clearDraft();
+    toast.success("Invite fields cleared.");
   };
 
   /**
@@ -213,6 +455,11 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
         // Reset to a single empty row — per-row personalMessage resets
         // along with the row state since it lives on InviteRow now.
         setRows([makeEmptyRow()]);
+        // Author: samir
+        // Impact: also wipe the persisted draft so it doesn't reappear next visit
+        // Reason: a successful send means the user is done with these rows — leaving
+        //         a stale draft would re-prefill the form and confuse the admin
+        clearDraft();
         onInviteSuccess?.();
       }
     } catch (err: unknown) {
@@ -270,7 +517,7 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
                   onClick={() => removeRow(row.id)}
                   disabled={createInvitations.isPending}
                   aria-label={`Remove invite ${idx + 1}`}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
                 >
                   <svg
                     className="h-4 w-4"
@@ -321,7 +568,6 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
 
               {/* Email spans both columns at sm+ so the input has room
                   for long addresses. */}
-              <div className="sm:col-span-2">
                 <FieldLabel text="Email">
                   <Input
                     type="email"
@@ -334,7 +580,6 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
                     autoComplete="off"
                   />
                 </FieldLabel>
-              </div>
 
               <FieldLabel
                 text="Job title"
@@ -353,21 +598,21 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
               </FieldLabel>
 
               <FieldLabel text="Role">
-                <StyledSelect
+                {/* Author: samir */}
+                {/* Impact: same shared <Select> primitive as GST/Currency on the org-setup page */}
+                {/* Reason: visual parity across the app's dropdowns. FieldLabel still renders the "Role" label so `label` is intentionally omitted from Select to avoid duplicating it. */}
+                <Select
                   value={row.organizationRoleId}
-                  onChange={(e) =>
-                    updateRow(row.id, "organizationRoleId", e.target.value)
+                  onChange={(value) =>
+                    updateRow(row.id, "organizationRoleId", value)
                   }
+                  options={(roles ?? []).map((r) => ({
+                    value: r.id,
+                    label: r.name,
+                  }))}
+                  placeholder="Select role…"
                   disabled={createInvitations.isPending || rolesLoading}
-                  aria-label={`Role for invite ${idx + 1}`}
-                >
-                  <option value="">Select role…</option>
-                  {roles?.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </StyledSelect>
+                />
               </FieldLabel>
 
               {/* Personal message — spans both columns at sm+ so the
@@ -392,16 +637,56 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
           </div>
         ))}
 
-        <button
-          type="button"
-          onClick={addRow}
-          disabled={
-            rows.length >= MAX_INVITES || createInvitations.isPending
-          }
-          className="inline-flex h-10 items-center self-start rounded-full px-3 text-sm font-medium text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 disabled:opacity-50 cursor-pointer"
-        >
-          + Add another invite
-        </button>
+        {/* Author: samir */}
+        {/* Impact: row groups Add + Clear so they share the same baseline */}
+        {/* Reason: Clear all fields is a peer action to Add another invite — */}
+        {/*         keeping them on the same row makes the relationship obvious */}
+        {/*         and stops Clear from getting orphaned next to the submit bar. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={addRow}
+            disabled={
+              rows.length >= MAX_INVITES || createInvitations.isPending
+            }
+            className="inline-flex h-10 items-center rounded-full px-3 text-sm font-medium text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
+          >
+            + Add another invite
+          </button>
+
+          {/* Old Author: samir */}
+          {/* New Author: samir */}
+          {/* Impact: pill-shaped destructive button with leading trash icon, */}
+          {/*         red ring + soft hover fill — no confirm prompt */}
+          {/* Reason: client asked for a more polished look and a one-click */}
+          {/*         clear (no "are you sure" interruption). The bordered */}
+          {/*         pill matches the visual weight of the "+ Add another */}
+          {/*         invite" sibling and reads as destructive without */}
+          {/*         shouting at the user. */}
+          <button
+            type="button"
+            onClick={handleClearAll}
+            disabled={!hasAnyContent || createInvitations.isPending}
+            aria-label="Clear all invite fields"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:border-red-300 hover:bg-red-50 hover:shadow active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-1"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+              />
+            </svg>
+            Clear all fields
+          </button>
+        </div>
       </div>
 
       {/* Submit — at narrow widths the helper text wraps above the button
@@ -423,7 +708,8 @@ export function InviteTab({ onInviteSuccess }: InviteTabProps) {
       </div>
     </div>
   );
-}
+  }
+);
 
 /**
  * Small label-over-input wrapper used by every field in the invite card.
