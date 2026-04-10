@@ -14,7 +14,6 @@
 // Reason: see import-customers.ts header — one importer per kind keeps
 //         the per-row validation + DB shape concerns local to each model
 
-import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db/client";
 import {
   PRODUCT_HEADERS,
@@ -116,31 +115,32 @@ export async function importProducts(
   for (let start = 0; start < toInsert.length; start += INSERT_BATCH_SIZE) {
     const batch = toInsert.slice(start, start + INSERT_BATCH_SIZE);
     try {
+      // Author: samir
+      // Impact: maps CSV columns to the real Product model columns (Puran's schema)
+      // Reason: the original mapping targeted a now-removed duplicate Product model
+      //         with different column names. Real columns: basePrice (Int),
+      //         quantity (Int), lengthM/widthM/heightM/weightKg (Float), etc.
+      //         Fields not in the real model (weeklyRate, powerRequired,
+      //         ageGroupMin/Max, maxOccupancy, safetyNotes) are silently dropped.
       const result = await db.product.createMany({
         data: batch.map((row) => ({
           orgId,
-          sku: row.sku,
+          sku: row.sku ?? `IMP-${crypto.randomUUID().slice(0, 8)}`,
           name: row.name,
-          category: row.category,
+          category: row.category ?? "General",
           description: row.description,
-          dailyRate: new Prisma.Decimal(row.daily_rate),
-          weeklyRate:
-            row.weekly_rate !== null ? new Prisma.Decimal(row.weekly_rate) : null,
-          totalQuantity: row.total_quantity ?? 1,
-          weightKg:
-            row.weight_kg !== null ? new Prisma.Decimal(row.weight_kg) : null,
-          lengthCm:
-            row.length_cm !== null ? new Prisma.Decimal(row.length_cm) : null,
-          widthCm: row.width_cm !== null ? new Prisma.Decimal(row.width_cm) : null,
-          heightCm:
-            row.height_cm !== null ? new Prisma.Decimal(row.height_cm) : null,
-          setupMinutes: row.setup_minutes,
-          packdownMinutes: row.packdown_minutes,
-          powerRequired: row.power_required,
-          ageGroupMin: row.age_group_min,
-          ageGroupMax: row.age_group_max,
-          maxOccupancy: row.max_occupancy,
-          safetyNotes: row.safety_notes,
+          // daily_rate (decimal string) → basePrice (Int whole dollars)
+          basePrice: Math.round(parseFloat(row.daily_rate)),
+          // total_quantity → quantity
+          quantity: row.total_quantity ?? 1,
+          // CSV dimensions are in cm; DB stores metres (Float)
+          weightKg: row.weight_kg !== null ? parseFloat(row.weight_kg) : null,
+          lengthM: row.length_cm !== null ? parseFloat(row.length_cm) / 100 : null,
+          widthM: row.width_cm !== null ? parseFloat(row.width_cm) / 100 : null,
+          heightM: row.height_cm !== null ? parseFloat(row.height_cm) / 100 : null,
+          // Int NOT NULL with default 0 in real schema — coalesce nulls
+          setupMinutes: row.setup_minutes ?? 0,
+          packdownMinutes: row.packdown_minutes ?? 0,
           tags: row.tags,
           createdBy: userId,
           updatedBy: userId,

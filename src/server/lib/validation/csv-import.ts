@@ -141,7 +141,7 @@ const optionalDecimal = z
     message: "Must be a positive number with at most 2 decimal places",
   });
 
-/** Helper for required positive decimals (e.g. dailyRate). */
+/** Helper for required positive decimals (e.g. daily_rate). */
 const requiredDecimal = z
   .string()
   .trim()
