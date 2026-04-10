@@ -61,7 +61,7 @@ export interface InventoryTabProps {
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
-type SubTabId = "concrete" | "grass" | "base" | "conditional" | "simulate";
+type SubTabId = "base" | "conditional" | "simulate";
 
 interface SubTabConfig {
   id: SubTabId;
@@ -86,27 +86,12 @@ interface AccessoryRow {
 }
 
 const SUB_TABS: SubTabConfig[] = [
-  { id: "concrete", label: "Concrete" },
-  { id: "grass", label: "Grass" },
   { id: "base", label: "Base components" },
   { id: "conditional", label: "Conditional rules" },
   { id: "simulate", label: "Simulate" },
 ];
 
 // ─── Mock seeds ────────────────────────────────────────────────────────
-
-const INITIAL_CONCRETE: ComponentRow[] = [
-  { id: "c1", name: "Castle body (blue/white)", quantity: "1" },
-  { id: "c2", name: "Blower (1.1kW)", quantity: "1" },
-  { id: "c3", name: "Pegs (bag of 6)", quantity: "1" },
-  { id: "c4", name: "Stakes (bag of 4)", quantity: "1" },
-];
-
-const INITIAL_GRASS: ComponentRow[] = [
-  { id: "g1", name: "Castle body (blue/white)", quantity: "1" },
-  { id: "g2", name: "Blower (1.1kW)", quantity: "1" },
-  { id: "g3", name: "Steel pegs (bag of 8)", quantity: "1" },
-];
 
 const INITIAL_BASE: ComponentRow[] = [
   {
@@ -162,10 +147,6 @@ const QTY_FORMULA_LABELS: Record<string, string> = {
 // Info banner copy keyed by sub-tab — kept here so the component body
 // stays focused on layout.
 const INFO_BANNER_COPY: Record<SubTabId, string> = {
-  concrete:
-    "List the parts that make up this product. Availability in Module B can check down to component level.",
-  grass:
-    "List the parts that make up this product on grass surfaces. Availability in Module B can check down to component level.",
   base: "List the parts that make up this product. This is the default loading list. Conditional rules below override it based on surface type, job duration, structure type, and more.",
   conditional: "",
   simulate: "",
@@ -188,13 +169,9 @@ export function InventoryTab({ productType }: InventoryTabProps) {
   const isSizeVariant = productType === "SIZE_VARIANT";
 
   // ── Sub-tab navigation ──────────────────────────────────────────────
-  const [activeSubTab, setActiveSubTab] = useState<SubTabId>("concrete");
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>("base");
 
-  // ── Component lists per sub-tab ─────────────────────────────────────
-  // Stored as separate state slices (rather than a Map) so React can
-  // bail out of re-rendering inactive lists when the active one changes.
-  const [concreteRows, setConcreteRows] = useState<ComponentRow[]>(INITIAL_CONCRETE);
-  const [grassRows, setGrassRows] = useState<ComponentRow[]>(INITIAL_GRASS);
+  // ── Component list ─────────────────────────────────────────────────
   const [baseRows, setBaseRows] = useState<ComponentRow[]>(INITIAL_BASE);
 
   // ── Accessories ─────────────────────────────────────────────────────
@@ -210,13 +187,7 @@ export function InventoryTab({ productType }: InventoryTabProps) {
     rows: ComponentRow[];
     setRows: (next: ComponentRow[]) => void;
   } => {
-    if (activeSubTab === "grass") {
-      return { rows: grassRows, setRows: setGrassRows };
-    }
-    if (activeSubTab === "base") {
-      return { rows: baseRows, setRows: setBaseRows };
-    }
-    return { rows: concreteRows, setRows: setConcreteRows };
+    return { rows: baseRows, setRows: setBaseRows };
   };
 
   const handleRowChange = (
@@ -411,19 +382,11 @@ export function InventoryTab({ productType }: InventoryTabProps) {
             <>
               <InfoBanner text={INFO_BANNER_COPY[activeSubTab]} />
 
-              {activeSubTab === "base" ? (
-                <BaseComponentsList
-                  rows={baseRows}
-                  onChange={handleRowChange}
-                  onRemove={handleRemoveRow}
-                />
-              ) : (
-                <SimpleComponentsList
-                  rows={getActiveList().rows}
-                  onChange={handleRowChange}
-                  onRemove={handleRemoveRow}
-                />
-              )}
+              <BaseComponentsList
+                rows={baseRows}
+                onChange={handleRowChange}
+                onRemove={handleRemoveRow}
+              />
 
               <div className="mt-4">
                 <button
@@ -541,66 +504,6 @@ function InfoBanner({ text }: InfoBannerProps) {
           {text}
         </p>
       </div>
-    </div>
-  );
-}
-
-interface SimpleComponentsListProps {
-  rows: ComponentRow[];
-  onChange: (id: string, field: keyof ComponentRow, value: string) => void;
-  onRemove: (id: string) => void;
-}
-
-/**
- * Concrete + Grass sub-tab list — name + qty + delete only.
- *
- * Desktop: 3-column grid where name takes the available space and
- * qty is a fixed-width column.
- * Mobile: name on its own row, qty + delete share the next row.
- */
-function SimpleComponentsList({
-  rows,
-  onChange,
-  onRemove,
-}: SimpleComponentsListProps) {
-  return (
-    // Author: Puran
-    // Impact: simplified the desktop grid so the Qty Input drops
-    //         straight into its own column instead of being wrapped
-    //         in a flex+md:flex-1 inner row
-    // Reason: the previous wrapper was inheriting flex sizing rules
-    //         from the parent and visually compressing the Qty pill
-    //         even though both inputs share the same h-12 pill class.
-    //         A flat 3-column grid with the column widths declared
-    //         once removes the height-mismatch visual entirely.
-    <div className="mt-4 flex flex-col gap-3">
-      {rows.map((row) => (
-        <div
-          key={row.id}
-          className="grid grid-cols-[1fr_auto_auto] gap-3 items-center"
-        >
-          <Input
-            value={row.name}
-            onChange={(e) => onChange(row.id, "name", e.target.value)}
-            placeholder="Component name"
-          />
-          <div className="w-24 md:w-32">
-            <Input
-              value={row.quantity}
-              onChange={(e) => {
-                const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                onChange(row.id, "quantity", cleaned);
-              }}
-              placeholder="1"
-              inputMode="numeric"
-            />
-          </div>
-          <RemoveButton
-            onClick={() => onRemove(row.id)}
-            label={`Remove component ${row.name || "untitled"}`}
-          />
-        </div>
-      ))}
     </div>
   );
 }
