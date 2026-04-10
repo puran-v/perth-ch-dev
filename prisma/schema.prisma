@@ -169,6 +169,21 @@ model Product {
   status          ProductStatus @default(ACTIVE)
   quantity        Int           @default(0)
   basePrice       Int           @default(0)
+
+  // Inventory tab — component parts and accessories
+  // Author: Puran
+  // Impact: JSONB arrays storing the base loading list and required
+  //         accessories for this product. Each component row has
+  //         {name, quantity, qtyFormula, warehouseNote}; each accessory
+  //         has {name, requirement}. Stored as JSONB rather than
+  //         normalised tables — same reasoning as pricingConfig/addonGroups.
+  // Reason: the warehouse pick list and the quote builder both read
+  //         these arrays at runtime. The component list drives what
+  //         goes on the truck; accessories are cross-tracked items
+  //         that must accompany the product.
+  components      Json?         @default("[]")
+  accessories     Json?         @default("[]")
+
   setupMinutes    Int           @default(0)
   packdownMinutes Int           @default(0)
 

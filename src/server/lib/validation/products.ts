@@ -23,6 +23,42 @@
 import { z } from "zod";
 import { addonGroupsSchema } from "@/server/lib/validation/pricing";
 
+// ── Inventory tab schemas ─────────────────────────────────────────────
+// Author: Puran
+// Impact: Zod schemas for the component parts and accessories JSONB
+//         arrays on the Product row
+// Reason: the warehouse pick list reads components to build the loading
+//         manifest; accessories are cross-tracked items that must go
+//         with the product. Defined once, reused in create + update.
+
+/** Single row in the base components list (inventory tab). */
+const componentRowSchema = z.object({
+  name: z.string().trim().min(1, "Component name is required").max(200),
+  quantity: z
+    .number()
+    .int("Quantity must be a whole number")
+    .min(0, "Quantity cannot be negative")
+    .max(10000, "Quantity is too large"),
+  qtyFormula: z.enum(["fixed", "per_crew", "per_hour", "per_day"]).optional(),
+  warehouseNote: z.string().trim().max(500).nullable().optional(),
+});
+
+/** Single row in the accessories list (inventory tab). */
+const accessoryRowSchema = z.object({
+  name: z.string().trim().min(1, "Accessory name is required").max(200),
+  requirement: z.enum(["always", "optional", "conditional"]),
+});
+
+const componentsSchema = z
+  .array(componentRowSchema)
+  .max(50, "A product can have at most 50 components")
+  .optional();
+
+const accessoriesSchema = z
+  .array(accessoryRowSchema)
+  .max(50, "A product can have at most 50 accessories")
+  .optional();
+
 // Author: Puran
 // Impact: products schemas now accept productType + pricingConfig +
 //         addonGroups
@@ -185,6 +221,8 @@ export const createProductSchema = z.object({
     .min(0, "Price cannot be negative")
     .max(10_000_000, "Price is too large")
     .optional(),
+  components: componentsSchema,
+  accessories: accessoriesSchema,
   setupMinutes: z
     .number()
     .int("Setup minutes must be a whole number")
@@ -364,6 +402,8 @@ export const updateProductSchema = z.object({
     .min(0, "Price cannot be negative")
     .max(10_000_000, "Price is too large")
     .optional(),
+  components: componentsSchema,
+  accessories: accessoriesSchema,
   setupMinutes: z
     .number()
     .int("Setup minutes must be a whole number")

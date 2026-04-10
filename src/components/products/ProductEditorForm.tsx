@@ -64,8 +64,10 @@ import {
 //         from the sign-off (no new bulk endpoint).
 import { apiClient } from "@/lib/api-client";
 import type {
+  AccessoryRow,
   AddonGroup,
   AddonOption,
+  ComponentRow,
   CreateProductInput,
   CreateVariantInput,
   DimensionBasedConfig,
@@ -267,6 +269,23 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     initialProduct?.basePrice !== undefined
       ? String(initialProduct.basePrice)
       : "0"
+  );
+
+  // ── Inventory tab state ──────────────────────────────────────────────
+  // Author: Puran
+  // Impact: quantity, components, and accessories lifted from InventoryTab
+  //         mock state into real form state hydrated from initialProduct
+  // Reason: these fields need to persist through buildPayload → API
+  const [inventoryQuantity, setInventoryQuantity] = useState(
+    initialProduct?.quantity !== undefined
+      ? String(initialProduct.quantity)
+      : "0"
+  );
+  const [components, setComponents] = useState<ComponentRow[]>(
+    (initialProduct?.components as ComponentRow[]) ?? []
+  );
+  const [accessories, setAccessories] = useState<AccessoryRow[]>(
+    (initialProduct?.accessories as AccessoryRow[]) ?? []
   );
 
   // Author: Puran
@@ -741,6 +760,9 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     description: description.trim() || null,
     configurable,
     basePrice: parseInt(productBasePrice, 10) || 0,
+    quantity: parseInt(inventoryQuantity, 10) || 0,
+    components,
+    accessories,
     // Author: Puran
     // Impact: Configuration tab fields — productType discriminator,
     //         the model-specific pricingConfig (or null), and the
@@ -1915,7 +1937,15 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
       ) : activeTab === "pricing" ? (
         <PricingTab />
       ) : activeTab === "inventory" ? (
-        <InventoryTab productType={productType} />
+        <InventoryTab
+          productType={productType}
+          quantity={inventoryQuantity}
+          onChangeQuantity={setInventoryQuantity}
+          components={components}
+          onChangeComponents={setComponents}
+          accessories={accessories}
+          onChangeAccessories={setAccessories}
+        />
       ) : activeTab === "operational" ? (
         <OperationalTab
           setupMinutes={setupMinutes}

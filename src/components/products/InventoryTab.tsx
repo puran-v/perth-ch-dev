@@ -11,7 +11,7 @@
  *      - Grass              (simple component list)
  *      - Base components    (rich component list with qty formula
  *                            and warehouse note per row)
- *      - Conditional rules  (placeholder for V1)
+ *      - Conditional rules  (IF/THEN rule cards — client state until API)
  *      - Simulate           (placeholder for V1)
  *      Each sub-tab has its own component list state so toggling
  *      between tabs preserves edits in both directions. The Create
@@ -39,24 +39,38 @@
 
 import { useState } from "react";
 import { toast } from "react-toastify";
-import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import {
+  ConditionalRulesPanel,
+  emptyConditionalRule,
+  INITIAL_CONDITIONAL_RULES,
+} from "@/components/products/ConditionalRulesPanel";
+import { SimulatePanel } from "@/components/products/SimulatePanel";
 import Input from "@/components/ui/Input";
 import { StyledSelect } from "@/components/ui/StyledSelect";
-import type { ProductType } from "@/types/products";
+import type {
+  AccessoryRow,
+  ComponentRow,
+  ProductType,
+} from "@/types/products";
 
 // Author: Puran
-// Impact: Inventory tab now accepts the parent product's productType
-//         so the Stock levels card can hide the parent qty input for
-//         SIZE_VARIANT products (per Q2 sign-off — variant qty is
-//         the source of truth for size variants)
-// Reason: Configurable Product Pricing spec §3 — for size_variant
-//         products, inventory is tracked PER VARIANT in the
-//         product_variants table. The parent quantity column is
-//         unused. Hiding it cleanly prevents the user from entering
-//         a contradictory number.
+// Impact: Inventory tab is now a fully controlled component — all
+//         state owned by ProductEditorForm and passed as props
+// Reason: quantity, components, and accessories must persist through
+//         the parent form's buildPayload → API. Mock local state
+//         was silently dropping all inventory changes on save.
 export interface InventoryTabProps {
   productType: ProductType;
+  // Stock levels
+  quantity: string;
+  onChangeQuantity: (v: string) => void;
+  // Component parts (base loading list)
+  components: ComponentRow[];
+  onChangeComponents: (next: ComponentRow[]) => void;
+  // Accessories & consumables
+  accessories: AccessoryRow[];
+  onChangeAccessories: (next: AccessoryRow[]) => void;
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -68,72 +82,10 @@ interface SubTabConfig {
   label: string;
 }
 
-interface ComponentRow {
-  id: string;
-  name: string;
-  /** Whole number string so the input can hold partial values */
-  quantity: string;
-  /** Only used by the "base" sub-tab */
-  qtyFormula?: string;
-  /** Only used by the "base" sub-tab */
-  warehouseNote?: string;
-}
-
-interface AccessoryRow {
-  id: string;
-  name: string;
-  requirement: "always" | "optional" | "conditional";
-}
-
 const SUB_TABS: SubTabConfig[] = [
   { id: "base", label: "Base components" },
   { id: "conditional", label: "Conditional rules" },
   { id: "simulate", label: "Simulate" },
-];
-
-// ─── Mock seeds ────────────────────────────────────────────────────────
-
-const INITIAL_BASE: ComponentRow[] = [
-  {
-    id: "b1",
-    name: "Castle body (blue/white)",
-    quantity: "1",
-    qtyFormula: "fixed",
-    warehouseNote: "",
-  },
-  {
-    id: "b2",
-    name: "Blower (1.1kW)",
-    quantity: "1",
-    qtyFormula: "fixed",
-    warehouseNote: "Store on top of castle roll",
-  },
-  {
-    id: "b3",
-    name: "Steel pegs",
-    quantity: "6",
-    qtyFormula: "fixed",
-    warehouseNote: "Standard grass anchoring",
-  },
-  {
-    id: "b4",
-    name: "Hammer",
-    quantity: "1",
-    qtyFormula: "per_crew",
-    warehouseNote: "1 per crew member",
-  },
-  {
-    id: "b5",
-    name: "Repair kit",
-    quantity: "1",
-    qtyFormula: "fixed",
-    warehouseNote: "Always in cab bag",
-  },
-];
-
-const INITIAL_ACCESSORIES: AccessoryRow[] = [
-  { id: "a1", name: "Extension lead (20m)", requirement: "always" },
-  { id: "a2", name: "Repair kit", requirement: "always" },
 ];
 
 // Friendly labels for the qty formula select.
@@ -155,144 +107,128 @@ const INFO_BANNER_COPY: Record<SubTabId, string> = {
 // ─── Component ─────────────────────────────────────────────────────────
 
 /**
- * Renders the full Inventory tab. State is owned locally for V1; lift
- * to the parent form via props when the API lands.
+ * Renders the full Inventory tab as a controlled component. All state
+ * is owned by ProductEditorForm and passed as props.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Inventory tab)
  */
-export function InventoryTab({ productType }: InventoryTabProps) {
-  // ── Stock levels state ──────────────────────────────────────────────
-  const [totalQuantity, setTotalQuantity] = useState("2");
-  const [trackingMode, setTrackingMode] = useState("quantity_only");
+export function InventoryTab(props: InventoryTabProps) {
+  const {
+    productType,
+    quantity: totalQuantity,
+    onChangeQuantity,
+    components,
+    onChangeComponents,
+    accessories,
+    onChangeAccessories,
+  } = props;
+
   const isSizeVariant = productType === "SIZE_VARIANT";
 
-  // ── Sub-tab navigation ──────────────────────────────────────────────
+  // ── Sub-tab navigation (local — UI-only, not persisted) ────────────
   const [activeSubTab, setActiveSubTab] = useState<SubTabId>("base");
+  const [trackingMode, setTrackingMode] = useState("quantity_only");
 
-  // ── Component list ─────────────────────────────────────────────────
-  const [baseRows, setBaseRows] = useState<ComponentRow[]>(INITIAL_BASE);
+  // ── Conditional rules (Component parts → Conditional rules sub-tab) ─
+  const [conditionalRules, setConditionalRules] = useState(
+    () => INITIAL_CONDITIONAL_RULES,
+  );
 
-  // ── Accessories ─────────────────────────────────────────────────────
-  const [accessories, setAccessories] = useState<AccessoryRow[]>(INITIAL_ACCESSORIES);
-
-  // ── Helpers to update the active list ───────────────────────────────
+  // ── Component CRUD helpers ───────────────────────────────────────────
   // Author: Puran
-  // Impact: single dispatcher for component-row mutations
-  // Reason: each sub-tab has its own state slice but the row CRUD is
-  //         identical, so a tiny dispatcher avoids three near-identical
-  //         pairs of handlers and keeps the JSX readable
-  const getActiveList = (): {
-    rows: ComponentRow[];
-    setRows: (next: ComponentRow[]) => void;
-  } => {
-    return { rows: baseRows, setRows: setBaseRows };
-  };
-
+  // Impact: component row mutations operate on the lifted props
+  // Reason: parent owns the state — these handlers call
+  //         onChangeComponents to propagate changes up
   const handleRowChange = (
-    id: string,
+    idx: number,
     field: keyof ComponentRow,
-    value: string,
+    value: string | number,
   ) => {
-    const { rows, setRows } = getActiveList();
-    setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    const updated = [...components];
+    updated[idx] = { ...updated[idx], [field]: value };
+    onChangeComponents(updated);
   };
 
-  const handleRemoveRow = (id: string) => {
-    const { rows, setRows } = getActiveList();
-    if (rows.length === 1) {
+  const handleRemoveRow = (idx: number) => {
+    if (components.length === 1) {
       toast.info("At least one component is required.");
       return;
     }
-    setRows(rows.filter((r) => r.id !== id));
+    onChangeComponents(components.filter((_, i) => i !== idx));
   };
 
   const handleAddRow = () => {
-    const { rows, setRows } = getActiveList();
-    const id = `row-${Date.now().toString(36)}`;
-    const newRow: ComponentRow =
-      activeSubTab === "base"
-        ? {
-            id,
-            name: "",
-            quantity: "1",
-            qtyFormula: "fixed",
-            warehouseNote: "",
-          }
-        : { id, name: "", quantity: "1" };
-    setRows([...rows, newRow]);
+    onChangeComponents([
+      ...components,
+      { name: "", quantity: 1, qtyFormula: "fixed", warehouseNote: "" },
+    ]);
   };
 
   // ── Accessories handlers ────────────────────────────────────────────
-
+  // Author: Puran
+  // Impact: accessory mutations operate on the lifted props
+  // Reason: parent owns the state
   const handleAccessoryChange = (
-    id: string,
+    idx: number,
     field: keyof AccessoryRow,
     value: string,
   ) => {
-    setAccessories((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
-    );
+    const updated = [...accessories];
+    updated[idx] = { ...updated[idx], [field]: value } as AccessoryRow;
+    onChangeAccessories(updated);
   };
 
-  const handleRemoveAccessory = (id: string) => {
-    setAccessories((prev) => prev.filter((a) => a.id !== id));
+  const handleRemoveAccessory = (idx: number) => {
+    onChangeAccessories(accessories.filter((_, i) => i !== idx));
   };
 
   const handleAddAccessory = () => {
-    setAccessories((prev) => [
-      ...prev,
-      {
-        id: `acc-${Date.now().toString(36)}`,
-        name: "",
-        requirement: "always",
-      },
+    onChangeAccessories([
+      ...accessories,
+      { name: "", requirement: "always" },
     ]);
   };
 
   const handleCreateNewRule = () => {
-    toast.info("Create New Rule — coming soon.");
+    if (activeSubTab === "conditional") {
+      setConditionalRules((prev) => [...prev, emptyConditionalRule()]);
+      return;
+    }
+    toast.info("Create New Rule — switch to the Conditional rules tab.");
   };
 
   return (
-    <div className="space-y-4">
-      {/* ── Stock levels card ────────────────────────────────────────── */}
-      <Card padding="md">
-        <p className="text-sm font-semibold text-slate-900">Stock levels</p>
+    <div className="space-y-6">
+      {/* ── Stock levels card — Figma: bold section title, two-column grid ─ */}
+      <Card padding="md" className="rounded-2xl border-slate-200 shadow-sm">
+        <h3 className="text-base font-semibold text-slate-900">Stock levels</h3>
 
         {isSizeVariant ? (
-          // Author: Puran
-          // Impact: SIZE_VARIANT products hide the parent quantity
-          //         input entirely; inventory lives per-variant
-          // Reason: Q2 sign-off — variant qty is the source of truth
-          //         for size variants. The Configuration tab's
-          //         Size options card is where the per-variant
-          //         quantity gets entered.
-          <div className="mt-4 rounded-2xl border border-blue bg-blue-50 px-4 py-3">
-            <p className="text-xs sm:text-sm text-blue leading-relaxed">
-              <strong>Per-variant inventory:</strong> this product
-              tracks stock per size variant. Set the quantity for each
-              size on the <strong>Configuration</strong> tab under{" "}
-              <em>Size options</em>. The total stock is the sum of
-              every active variant.
+          <div className="mt-5 rounded-2xl border border-blue bg-blue-50 px-4 py-3.5">
+            <p className="text-sm text-blue leading-relaxed">
+              <strong>Per-variant inventory:</strong> this product tracks stock
+              per size variant. Set the quantity for each size on the{" "}
+              <strong>Configuration</strong> tab under <em>Size options</em>. The
+              total stock is the sum of every active variant.
             </p>
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <div className="mt-5 grid grid-cols-1 gap-y-5 md:grid-cols-2 md:gap-x-10 md:gap-y-4">
             <div>
               <Input
                 label="Total quantity owned *"
                 value={totalQuantity}
                 onChange={(e) => {
-                  // Strip non-digits so the input always holds a clean number
                   const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                  setTotalQuantity(cleaned);
+                  onChangeQuantity(cleaned);
                 }}
                 placeholder="0"
                 inputMode="numeric"
+                inputClassName="text-base"
               />
-              <p className="mt-1.5 text-xs text-slate-500">
+              <p className="mt-2 text-sm text-slate-500">
                 Total units available for hire
               </p>
             </div>
@@ -305,12 +241,13 @@ export function InventoryTab({ productType }: InventoryTabProps) {
                   value={trackingMode}
                   onChange={(e) => setTrackingMode(e.target.value)}
                   aria-label="Unit-level tracking mode"
+                  className="text-base"
                 >
                   <option value="quantity_only">Quantity only (V1)</option>
                   <option value="serial">Serial / Asset tag (V2)</option>
                 </StyledSelect>
               </div>
-              <p className="mt-1.5 text-xs text-slate-500">
+              <p className="mt-2 text-sm text-slate-500">
                 Individual unit tracking in Module B
               </p>
             </div>
@@ -318,22 +255,19 @@ export function InventoryTab({ productType }: InventoryTabProps) {
         )}
       </Card>
 
-      {/* ── Component parts card ─────────────────────────────────────── */}
-      <Card padding="md">
-        <p className="text-sm font-semibold text-slate-900">Component parts</p>
-        <p className="mt-1 text-xs sm:text-sm text-slate-500">
-          Base list for standard conditions. Rules below adjust what goes on
-          the truck based on surface, duration, job type and more.
+      {/* ── Component parts header + sub-tabs always in card ─────────── */}
+      <Card padding="md" className="rounded-2xl border-slate-200 shadow-sm">
+        <h3 className="text-base font-semibold text-slate-900">Component parts</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+          Base list for standard conditions. Rules below adjust what goes on the
+          truck based on surface, duration, job type and more.
         </p>
 
-        {/* Sub-tab pill bar + Create New Rule button.
-            Stacks on small screens so the rule button doesn't push the
-            tabs off the right edge. */}
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div
             role="tablist"
             aria-label="Component parts sub-sections"
-            className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 sm:gap-2"
+            className="-mx-1 flex flex-wrap items-center gap-2 px-1"
           >
             {SUB_TABS.map((tab) => {
               const active = tab.id === activeSubTab;
@@ -345,10 +279,10 @@ export function InventoryTab({ productType }: InventoryTabProps) {
                   aria-selected={active}
                   onClick={() => setActiveSubTab(tab.id)}
                   className={[
-                    "shrink-0 inline-flex items-center justify-center rounded-full px-4 h-9 text-xs font-medium transition-colors cursor-pointer",
+                    "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full px-4 text-xs font-semibold transition-colors",
                     active
-                      ? "bg-gray-900 text-white shadow-sm"
-                      : "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                      ? "bg-[#0F172A] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900",
                   ].join(" ")}
                 >
                   {tab.label}
@@ -360,97 +294,112 @@ export function InventoryTab({ productType }: InventoryTabProps) {
             <button
               type="button"
               onClick={handleCreateNewRule}
-              className="inline-flex items-center justify-center rounded-full bg-[#042E93] px-5 h-10 text-xs font-semibold text-white transition-colors hover:bg-[#042E93]/90 cursor-pointer"
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full bg-[#042E93] px-5 text-xs font-semibold text-white transition-colors hover:bg-[#042E93]/90"
             >
               Create New Rule
             </button>
           </div>
         </div>
 
-        {/* Sub-tab body */}
-        <div className="mt-4">
-          {activeSubTab === "conditional" || activeSubTab === "simulate" ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-slate-900">
-                {activeSubTab === "conditional"
-                  ? "Conditional rules"
-                  : "Simulate"}{" "}
-                — coming soon
-              </p>
-              <p className="mt-1 text-xs sm:text-sm text-slate-500">
-                This section is part of the Module A roadmap and will be
-                wired up in a follow-up release.
-              </p>
-            </div>
-          ) : (
-            <>
-              <InfoBanner text={INFO_BANNER_COPY[activeSubTab]} />
-
-              <BaseComponentsList
-                rows={baseRows}
-                onChange={handleRowChange}
-                onRemove={handleRemoveRow}
-                onAdd={handleAddRow}
+        {/* Base components and Conditional rules render inside the card */}
+        {activeSubTab !== "simulate" && (
+          <div className="mt-5">
+            {activeSubTab === "conditional" ? (
+              <ConditionalRulesPanel
+                rules={conditionalRules}
+                onRulesChange={setConditionalRules}
               />
-            </>
-          )}
-        </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <InfoBanner text={INFO_BANNER_COPY[activeSubTab]} />
+                <BaseComponentsList
+                  rows={components}
+                  onChange={handleRowChange}
+                  onRemove={handleRemoveRow}
+                  onAdd={handleAddRow}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
-      {/* ── Accessories & consumables card ───────────────────────────── */}
-      <Card padding="md">
-        <p className="text-sm font-semibold text-slate-900">
+      {/* Simulate renders as its own top-level cards (no outer card wrapper) */}
+      {activeSubTab === "simulate" && (
+        <SimulatePanel
+          baseRows={components.map((c, i) => ({
+            id: `comp-${i}`,
+            name: c.name,
+            quantity: String(c.quantity),
+            qtyFormula: c.qtyFormula,
+          }))}
+          conditionalRules={conditionalRules}
+        />
+      )}
+
+      {/* ── Accessories — hidden on Simulate sub-tab (not relevant there) ─── */}
+      {activeSubTab !== "simulate" && <Card padding="md" className="rounded-2xl border-slate-200 shadow-sm">
+        <h3 className="text-base font-semibold text-slate-900">
           Accessories &amp; consumables required
-        </p>
-        <p className="mt-1 text-xs sm:text-sm text-slate-500">
+        </h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
           Items that must go with this product but are tracked separately.
         </p>
 
-        <div className="mt-4 flex flex-col gap-3">
-          {accessories.map((acc) => (
-            <div
-              key={acc.id}
-              className="grid grid-cols-1 md:grid-cols-[1fr_minmax(180px,200px)_auto] gap-2 md:gap-3 md:items-center"
-            >
-              <Input
-                value={acc.name}
-                onChange={(e) =>
-                  handleAccessoryChange(acc.id, "name", e.target.value)
-                }
-                placeholder="Component name"
-              />
-              <StyledSelect
-                value={acc.requirement}
-                onChange={(e) =>
-                  handleAccessoryChange(acc.id, "requirement", e.target.value)
-                }
-                aria-label="Requirement"
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white">
+          <div className="divide-y divide-slate-100">
+            {accessories.map((acc, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4"
               >
-                <option value="always">Always required</option>
-                <option value="optional">Optional</option>
-                <option value="conditional">Conditional</option>
-              </StyledSelect>
-              <div className="flex justify-end md:justify-center md:items-center">
-                <RemoveButton
-                  onClick={() => handleRemoveAccessory(acc.id)}
-                  label={`Remove accessory ${acc.name || "untitled"}`}
-                />
+                <div className="min-w-0 flex-1">
+                  <Input
+                    value={acc.name}
+                    onChange={(e) =>
+                      handleAccessoryChange(idx, "name", e.target.value)
+                    }
+                    placeholder="Component name"
+                    inputClassName="text-base"
+                  />
+                </div>
+                <div className="flex shrink-0 items-center gap-3 sm:w-[min(100%,220px)]">
+                  <StyledSelect
+                    value={acc.requirement}
+                    onChange={(e) =>
+                      handleAccessoryChange(
+                        idx,
+                        "requirement",
+                        e.target.value,
+                      )
+                    }
+                    aria-label="Requirement"
+                    className="text-base"
+                  >
+                    <option value="always">Always required</option>
+                    <option value="optional">Optional</option>
+                    <option value="conditional">Conditional</option>
+                  </StyledSelect>
+                  <RemoveButton
+                    onClick={() => handleRemoveAccessory(idx)}
+                    label={`Remove accessory ${acc.name || "untitled"}`}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div className="border-t border-slate-100 px-4 py-4">
+            <button
+              type="button"
+              onClick={handleAddAccessory}
+              className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+            >
+              <PlusIcon />
+              Add accessory
+            </button>
+          </div>
         </div>
-
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={handleAddAccessory}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
-          >
-            <PlusIcon />
-            Add accessory
-          </button>
-        </div>
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -494,9 +443,7 @@ function InfoBanner({ text }: InfoBannerProps) {
             d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
           />
         </svg>
-        <p className="text-xs sm:text-sm text-blue leading-relaxed">
-          {text}
-        </p>
+        <p className="text-sm leading-relaxed text-blue">{text}</p>
       </div>
     </div>
   );
@@ -504,8 +451,8 @@ function InfoBanner({ text }: InfoBannerProps) {
 
 interface BaseComponentsListProps {
   rows: ComponentRow[];
-  onChange: (id: string, field: keyof ComponentRow, value: string) => void;
-  onRemove: (id: string) => void;
+  onChange: (idx: number, field: keyof ComponentRow, value: string | number) => void;
+  onRemove: (idx: number) => void;
   onAdd: () => void;
 }
 
@@ -536,27 +483,31 @@ function BaseComponentsList({
   onAdd,
 }: BaseComponentsListProps) {
   return (
-    <div className="mt-4">
-      {/* Author: Puran */}
-      {/* Impact: wrapped rows in a rounded bordered container with */}
-      {/*         header row inside — matches the Figma card layout */}
-      {/* Reason: Figma shows headers + rows in one bordered card */}
-      <div className="rounded-2xl border border-slate-200 bg-white">
-        {/* Desktop column headers */}
-        <div className="hidden lg:grid grid-cols-[24px_2fr_80px_minmax(130px,1fr)_1.5fr_44px] gap-3 px-5 py-4 border-b border-slate-100">
+    <div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Desktop column headers — aligned to row grid */}
+        <div className="hidden lg:grid lg:grid-cols-[28px_minmax(0,2fr)_88px_minmax(140px,1fr)_minmax(0,1.5fr)_48px] lg:items-end lg:gap-3 lg:border-b lg:border-slate-100 lg:px-5 lg:pb-3 lg:pt-4">
           <span className="sr-only">Drag</span>
-          <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">Component name</p>
-          <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">Qty</p>
-          <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">Qty formula</p>
-          <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">Warehouse note</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Component name
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Qty
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Qty formula
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Warehouse note
+          </p>
           <span className="sr-only">Remove</span>
         </div>
 
-        <div className="flex flex-col gap-0 divide-y divide-slate-100">
-          {rows.map((row) => (
+        <div className="flex flex-col divide-y divide-slate-100">
+          {rows.map((row, idx) => (
             <div
-              key={row.id}
-              className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:grid lg:grid-cols-[24px_2fr_80px_minmax(130px,1fr)_1.5fr_44px] lg:gap-3 lg:items-center lg:rounded-none lg:border-0 lg:bg-transparent lg:px-5 lg:py-4"
+              key={idx}
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid lg:grid-cols-[28px_minmax(0,2fr)_88px_minmax(140px,1fr)_minmax(0,1.5fr)_48px] lg:items-center lg:gap-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-5 lg:py-4"
             >
           {/* Drag handle — visual only, hidden below lg */}
           <div className="hidden lg:flex lg:items-center lg:justify-center text-slate-400">
@@ -564,44 +515,47 @@ function BaseComponentsList({
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2 lg:block">
-              <label className="lg:hidden text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <label className="text-sm font-medium text-slate-700 lg:hidden">
                 Component name
               </label>
               <div className="lg:hidden">
                 <RemoveButton
-                  onClick={() => onRemove(row.id)}
+                  onClick={() => onRemove(idx)}
                   label={`Remove component ${row.name || "untitled"}`}
                 />
               </div>
             </div>
             <Input
               value={row.name}
-              onChange={(e) => onChange(row.id, "name", e.target.value)}
+              onChange={(e) => onChange(idx, "name", e.target.value)}
               placeholder="Component name"
+              inputClassName="text-base"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="lg:hidden text-xs font-medium text-slate-500">
+            <label className="text-sm font-medium text-slate-700 lg:hidden">
               Qty
             </label>
             <Input
-              value={row.quantity}
+              value={String(row.quantity)}
               onChange={(e) => {
                 const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                onChange(row.id, "quantity", cleaned);
+                onChange(idx, "quantity", parseInt(cleaned, 10) || 0);
               }}
               placeholder="1"
               inputMode="numeric"
+              inputClassName="text-base"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="lg:hidden text-xs font-medium text-slate-500">
+            <label className="text-sm font-medium text-slate-700 lg:hidden">
               Qty formula
             </label>
             <StyledSelect
               value={row.qtyFormula ?? "fixed"}
-              onChange={(e) => onChange(row.id, "qtyFormula", e.target.value)}
+              onChange={(e) => onChange(idx, "qtyFormula", e.target.value)}
               aria-label={`Qty formula for ${row.name || "component"}`}
+              className="text-base"
             >
               {Object.entries(QTY_FORMULA_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -611,22 +565,23 @@ function BaseComponentsList({
             </StyledSelect>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="lg:hidden text-xs font-medium text-slate-500">
+            <label className="text-sm font-medium text-slate-700 lg:hidden">
               Warehouse note
             </label>
             <Input
               value={row.warehouseNote ?? ""}
               onChange={(e) =>
-                onChange(row.id, "warehouseNote", e.target.value)
+                onChange(idx, "warehouseNote", e.target.value)
               }
               placeholder="Warehouse note..."
+              inputClassName="text-base"
             />
           </div>
           {/* Desktop-only delete column — mobile delete lives next to the
               Component name label above. */}
           <div className="hidden lg:flex lg:justify-center lg:items-center">
             <RemoveButton
-              onClick={() => onRemove(row.id)}
+              onClick={() => onRemove(idx)}
               label={`Remove component ${row.name || "untitled"}`}
             />
           </div>
@@ -635,11 +590,11 @@ function BaseComponentsList({
         </div>
 
         {/* "+ Add component" button inside the bordered card */}
-        <div className="px-5 py-4">
+        <div className="border-t border-slate-100 px-5 py-4">
           <button
             type="button"
             onClick={onAdd}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
+            className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
           >
             <PlusIcon />
             Add component
