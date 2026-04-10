@@ -131,7 +131,6 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
-        <BackToTeamLink />
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Team &amp; Users</h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -160,7 +159,6 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
   if (membersError || !member) {
     return (
       <div className="flex flex-col gap-6">
-        <BackToTeamLink />
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Team &amp; Users</h1>
         </div>
@@ -189,8 +187,6 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToTeamLink />
-
       {/* Heading — matches Figma */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Team &amp; Users</h1>
@@ -343,40 +339,15 @@ export default function EditMemberPage({ params }: EditMemberPageProps) {
   );
 }
 
-/**
- * Small "Back to team" button rendered above the heading on every state
- * of this page (loading, not-found, main). Uses Next Link with an
- * explicit destination rather than router.back() so it stays predictable
- * even on direct page loads (e.g. opening the URL from a notification).
- *
- * @author Puran
- * @created 2026-04-06
- * @module Team - Pages
- */
-function BackToTeamLink() {
-  return (
-    <Link
-      href="/dashboard/team"
-      className="inline-flex h-9 w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-    >
-      <svg
-        aria-hidden="true"
-        className="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M15 19l-7-7 7-7"
-        />
-      </svg>
-      Back to team
-    </Link>
-  );
-}
+// Author: samir
+// Impact: removed the BackToTeamLink in-page button + its 3 usages
+// Reason: the dashboard layout's sticky header now renders a back arrow
+//         for /dashboard/team/members/[id]/edit (see ROUTE_TITLES,
+//         back: true), so the in-page button was a visual + interaction
+//         duplicate. Single source of truth for back navigation across
+//         the dashboard's detail / edit screens. The next/link import is
+//         kept because the empty-roles state still uses Link for the
+//         inline "Create one" CTA.
 
 /**
  * Formats an ISO timestamp as a short relative time string.
