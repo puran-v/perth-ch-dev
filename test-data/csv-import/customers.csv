@@ -1,0 +1,9 @@
+first_name,last_name,email,phone,mobile,company,address_line1,address_suburb,address_state,address_postcode,notes,tags
+Sarah,Johnson,sarah.johnson@email.com,,0412 345 678,,12 Beach Road,Cottesloe,WA,6011,Repeat customer - prefers morning delivery,"VIP,regular"
+James,Williams,james.williams@acme.com.au,08 9111 2222,0422 555 111,Acme Corporate Events,44 Park Lane,Subiaco,WA,6008,,corporate
+Emily,Chen,emily.chen@email.com,,0498 765 432,,9 Hilltop Avenue,Joondalup,WA,6027,,birthday-party
+Michael,O'Brien,michael.obrien@example.com,08 9333 4444,0466 777 888,,18 Bayview Terrace,Claremont,WA,6010,Allergic to latex - flag for staff,school
+Olivia,Taylor,olivia.taylor@email.com,,0411 222 333,Sunny Days Childcare,87 Karinya Way,Currambine,WA,6028,,"school,regular"
+David,Nguyen,david.nguyen@bigevents.com.au,08 9555 6666,0455 999 222,Big Events Co,"Suite 5, 200 William Street",Northbridge,WA,6003,Net 30 invoicing required,"corporate,VIP"
+Mia,Patel,mia.patel@email.com,,0488 111 999,,33 Tree Avenue,Mount Lawley,WA,6050,,
+Liam,Kowalski,liam.kowalski@email.com,,0410 555 666,,55 Ocean Drive,Scarborough,WA,6019,Saturday delivery only,"birthday-party,regular"
