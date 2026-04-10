@@ -551,7 +551,7 @@ function BaseComponentsList({
       {/* Reason: Figma shows headers + rows in one bordered card */}
       <div className="rounded-2xl border border-slate-200 bg-white">
         {/* Desktop column headers */}
-        <div className="hidden lg:grid grid-cols-[20px_1.4fr_80px_140px_1.2fr_auto] gap-3 px-5 py-4 border-b border-slate-100">
+        <div className="hidden lg:grid grid-cols-[20px_2fr_80px_160px_1.2fr_auto] gap-3 px-5 py-4 border-b border-slate-100">
           <span className="sr-only">Drag</span>
           <p className="text-sm font-semibold text-slate-900">Component name</p>
           <p className="text-sm font-semibold text-slate-900">Qty</p>
@@ -564,7 +564,7 @@ function BaseComponentsList({
           {rows.map((row) => (
             <div
               key={row.id}
-              className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:grid lg:grid-cols-[20px_1.4fr_80px_140px_1.2fr_auto] lg:gap-3 lg:items-center lg:rounded-none lg:border-0 lg:bg-transparent lg:px-5 lg:py-4"
+              className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:grid lg:grid-cols-[20px_2fr_80px_160px_1.2fr_auto] lg:gap-3 lg:items-center lg:rounded-none lg:border-0 lg:bg-transparent lg:px-5 lg:py-4"
             >
           {/* Drag handle — visual only, hidden below lg */}
           <div className="hidden lg:flex lg:items-center lg:justify-center text-slate-400">
