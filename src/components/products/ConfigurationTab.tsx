@@ -195,6 +195,10 @@ export interface ConfigurationTabProps {
   ) => void;
   onRemoveAddonOption: (groupId: string, optionId: string) => void;
 
+  // ── Product-level base price (QUANTITY_ADDONS) ───────────────────
+  productBasePrice: string;
+  onChangeProductBasePrice: (v: string) => void;
+
   // ── Configuration notes ─────────────────────────────────────────
   configNotes: string;
   onChangeConfigNotes: (v: string) => void;
@@ -258,6 +262,8 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
     onAddAddonOption,
     onChangeAddonOption,
     onRemoveAddonOption,
+    productBasePrice,
+    onChangeProductBasePrice,
     configNotes,
     onChangeConfigNotes,
   } = props;
@@ -609,6 +615,40 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
               </div>
             </>
           )}
+        </Card>
+      )}
+
+      {/* ── Base price card (QUANTITY_ADDONS only) ───────────────────── */}
+      {/* Author: Puran */}
+      {/* Impact: fixed product-level price shown before add-ons */}
+      {/* Reason: spec §5 model 3 — "The product has a base price. */}
+      {/*         On top of that, the admin configures add-on groups." */}
+      {/*         This is the base price the quote builder uses as */}
+      {/*         line item 1; each selected add-on stacks on top. */}
+      {productType === "QUANTITY_ADDONS" && (
+        <Card padding="md">
+          <p className="text-sm font-semibold text-slate-900">Base price</p>
+          <div className="mt-3">
+            <InfoBanner text="The fixed price for this product before any add-ons are applied. Add-on selections generate additional line items on the quote." />
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+              <Input
+                label="Base price ($)"
+                value={productBasePrice ? `$${productBasePrice}` : ""}
+                onChange={(e) =>
+                  onChangeProductBasePrice(
+                    e.target.value.replace(/[^0-9]/g, "")
+                  )
+                }
+                placeholder="$ 0"
+                inputMode="numeric"
+              />
+              <p className="mt-1.5 text-xs text-slate-500">
+                Whole-dollar amount — the starting price on the quote
+              </p>
+            </div>
+          </div>
         </Card>
       )}
 

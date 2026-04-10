@@ -252,6 +252,22 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
   const [configurable, setConfigurable] = useState(initialProduct?.configurable ?? false);
   const [status, setStatus] = useState<ProductStatus>(initialProduct?.status ?? "ACTIVE");
   const [tags, setTags] = useState<string[]>(initialProduct?.tags ?? []);
+  // Author: Puran
+  // Impact: product-level base price — the fixed price that appears on
+  //         the quote before any add-ons are stacked on top
+  // Reason: spec §2 + §5 model 3 — STANDARD products use basePrice as
+  //         the only price, QUANTITY_ADDONS uses it as the starting
+  //         price before add-on selections are applied. Dimension-based
+  //         and size-variant types compute their own price via formulas
+  //         or variant rows, so basePrice is irrelevant to them.
+  //         Named `productBasePrice` to avoid collision with the
+  //         dimension-based `basePrice` state (pricingConfig field for
+  //         the base_plus_sqm method — different concept entirely).
+  const [productBasePrice, setProductBasePrice] = useState(
+    initialProduct?.basePrice !== undefined
+      ? String(initialProduct.basePrice)
+      : "0"
+  );
 
   // Author: Puran
   // Impact: real API mutations replace the toast stub
@@ -724,6 +740,7 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     subcategory: subcategory.trim() || null,
     description: description.trim() || null,
     configurable,
+    basePrice: parseInt(productBasePrice, 10) || 0,
     // Author: Puran
     // Impact: Configuration tab fields — productType discriminator,
     //         the model-specific pricingConfig (or null), and the
@@ -1997,6 +2014,8 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
           onAddAddonOption={handleAddAddonOption}
           onChangeAddonOption={handleAddonOptionChange}
           onRemoveAddonOption={handleRemoveAddonOption}
+          productBasePrice={productBasePrice}
+          onChangeProductBasePrice={setProductBasePrice}
           configNotes={configNotes}
           onChangeConfigNotes={setConfigNotes}
         />
