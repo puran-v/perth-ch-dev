@@ -245,6 +245,15 @@ model Product {
   warehouseNotes String?
   aiRules        String?
 
+  // Author: Puran
+  // Impact: free-text notes shown to the sales team inside the
+  //         quote builder configurator modal for this product
+  // Reason: spec §8 step 2 — the configurator is built from
+  //         pricingConfig + addonGroups + these human-written notes.
+  //         Separate from salesNotes (general briefing) because
+  //         configNotes are contextual to the configuration UI only.
+  configNotes    String?
+
   images          String[]      @default([])
   tags            String[]      @default([])
 

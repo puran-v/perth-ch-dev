@@ -359,6 +359,8 @@ export interface ProductRow {
   salesNotes: string | null;
   warehouseNotes: string | null;
   aiRules: string | null;
+  // Configuration tab — notes shown to sales in the configurator
+  configNotes: string | null;
   images: string[];
   tags: string[];
   createdAt: string;
@@ -440,6 +442,8 @@ export interface CreateProductInput {
   salesNotes?: string | null;
   warehouseNotes?: string | null;
   aiRules?: string | null;
+  // Configuration tab
+  configNotes?: string | null;
   images?: string[];
   tags?: string[];
 }

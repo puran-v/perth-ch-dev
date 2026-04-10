@@ -279,6 +279,7 @@ export const createProductSchema = z.object({
   salesNotes: optionalText(5000),
   warehouseNotes: optionalText(5000),
   aiRules: optionalText(5000),
+  configNotes: optionalText(2000),
   images: z
     .array(productImageDataUrl)
     .max(
@@ -416,6 +417,7 @@ export const updateProductSchema = z.object({
   salesNotes: optionalText(5000),
   warehouseNotes: optionalText(5000),
   aiRules: optionalText(5000),
+  configNotes: optionalText(2000),
   images: z
     .array(productImageDataUrl)
     .max(PRODUCT_IMAGE_MAX_COUNT)

@@ -194,6 +194,10 @@ export interface ConfigurationTabProps {
     patch: Partial<AddonOption>
   ) => void;
   onRemoveAddonOption: (groupId: string, optionId: string) => void;
+
+  // ── Configuration notes ─────────────────────────────────────────
+  configNotes: string;
+  onChangeConfigNotes: (v: string) => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -254,6 +258,8 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
     onAddAddonOption,
     onChangeAddonOption,
     onRemoveAddonOption,
+    configNotes,
+    onChangeConfigNotes,
   } = props;
 
   return (
@@ -641,6 +647,29 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
           <PlusIcon />
           Add add-on group
         </button>
+      </Card>
+
+      {/* ── Configuration notes card ────────────────────────────────── */}
+      {/* Author: Puran */}
+      {/* Impact: free-text notes the admin writes for the sales team, */}
+      {/*         shown inside the quote builder configurator modal */}
+      {/* Reason: spec §8 step 2 — the modal is built from */}
+      {/*         pricingConfig + addonGroups + these notes */}
+      <Card padding="md">
+        <p className="text-sm font-semibold text-slate-900">
+          Configuration notes
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Notes shown to sales team inside the configurator
+        </p>
+        <textarea
+          value={configNotes}
+          onChange={(e) => onChangeConfigNotes(e.target.value)}
+          rows={4}
+          maxLength={2000}
+          placeholder="e.g. Bays are 3m wide — multiply selected width by number of bays for sidewall quantities."
+          className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none resize-y"
+        />
       </Card>
     </div>
   );

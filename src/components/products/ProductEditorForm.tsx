@@ -351,6 +351,14 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     initialProduct?.warehouseNotes ?? ""
   );
   const [aiRules, setAiRules] = useState(initialProduct?.aiRules ?? "");
+  // Author: Puran
+  // Impact: configuration notes shown to sales team in the configurator
+  // Reason: spec §8 step 2 — the modal UI is built from pricingConfig +
+  //         addonGroups + these notes, giving the admin a way to add
+  //         context that the sales team sees while configuring the product
+  const [configNotes, setConfigNotes] = useState(
+    initialProduct?.configNotes ?? ""
+  );
 
   // ── Configuration tab state (Phase 2 — lifted from local) ──────────
   //
@@ -754,6 +762,7 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     salesNotes: salesNotes.trim() || null,
     warehouseNotes: warehouseNotes.trim() || null,
     aiRules: aiRules.trim() || null,
+    configNotes: configNotes.trim() || null,
     images,
     tags,
   });
@@ -1988,6 +1997,8 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
           onAddAddonOption={handleAddAddonOption}
           onChangeAddonOption={handleAddonOptionChange}
           onRemoveAddonOption={handleRemoveAddonOption}
+          configNotes={configNotes}
+          onChangeConfigNotes={setConfigNotes}
         />
       ) : (
         <ComingSoonTab
