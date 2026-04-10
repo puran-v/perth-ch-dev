@@ -1,14 +1,21 @@
--- CreateEnum
-CREATE TYPE "ImportKind" AS ENUM ('CUSTOMERS', 'PRODUCTS', 'BOOKINGS');
+-- CreateEnum (IF NOT EXISTS so re-runs are safe)
+DO $$ BEGIN
+  CREATE TYPE "ImportKind" AS ENUM ('CUSTOMERS', 'PRODUCTS', 'BOOKINGS');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "ImportStatus" AS ENUM ('RUNNING', 'COMPLETED', 'FAILED');
+DO $$ BEGIN
+  CREATE TYPE "ImportStatus" AS ENUM ('RUNNING', 'COMPLETED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateEnum
-CREATE TYPE "BookingPaymentStatus" AS ENUM ('UNPAID', 'PARTIAL', 'PAID');
+DO $$ BEGIN
+  CREATE TYPE "BookingPaymentStatus" AS ENUM ('UNPAID', 'PARTIAL', 'PAID');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateTable
-CREATE TABLE "customers" (
+-- CreateTable: customers
+CREATE TABLE IF NOT EXISTS "customers" (
     "id" TEXT NOT NULL,
     "orgId" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
@@ -32,40 +39,8 @@ CREATE TABLE "customers" (
     CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "products" (
-    "id" TEXT NOT NULL,
-    "orgId" TEXT NOT NULL,
-    "sku" TEXT,
-    "name" TEXT NOT NULL,
-    "category" TEXT,
-    "description" TEXT,
-    "dailyRate" DECIMAL(10,2) NOT NULL,
-    "weeklyRate" DECIMAL(10,2),
-    "totalQuantity" INTEGER NOT NULL DEFAULT 1,
-    "weightKg" DECIMAL(8,2),
-    "lengthCm" DECIMAL(8,2),
-    "widthCm" DECIMAL(8,2),
-    "heightCm" DECIMAL(8,2),
-    "setupMinutes" INTEGER,
-    "packdownMinutes" INTEGER,
-    "powerRequired" BOOLEAN NOT NULL DEFAULT false,
-    "ageGroupMin" INTEGER,
-    "ageGroupMax" INTEGER,
-    "maxOccupancy" INTEGER,
-    "safetyNotes" TEXT,
-    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
-    "createdBy" TEXT,
-    "updatedBy" TEXT,
-
-    CONSTRAINT "products_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "bookings" (
+-- CreateTable: bookings
+CREATE TABLE IF NOT EXISTS "bookings" (
     "id" TEXT NOT NULL,
     "orgId" TEXT NOT NULL,
     "externalRef" TEXT NOT NULL,
@@ -93,8 +68,8 @@ CREATE TABLE "bookings" (
     CONSTRAINT "bookings_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "import_jobs" (
+-- CreateTable: import_jobs
+CREATE TABLE IF NOT EXISTS "import_jobs" (
     "id" TEXT NOT NULL,
     "orgId" TEXT NOT NULL,
     "kind" "ImportKind" NOT NULL,
@@ -113,59 +88,37 @@ CREATE TABLE "import_jobs" (
     CONSTRAINT "import_jobs_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "customers_orgId_idx" ON "customers"("orgId");
+-- CreateIndex (IF NOT EXISTS for idempotency)
+CREATE INDEX IF NOT EXISTS "customers_orgId_idx" ON "customers"("orgId");
+CREATE INDEX IF NOT EXISTS "customers_orgId_lastName_firstName_idx" ON "customers"("orgId", "lastName", "firstName");
+CREATE UNIQUE INDEX IF NOT EXISTS "customers_orgId_email_key" ON "customers"("orgId", "email");
 
--- CreateIndex
-CREATE INDEX "customers_orgId_lastName_firstName_idx" ON "customers"("orgId", "lastName", "firstName");
+CREATE INDEX IF NOT EXISTS "bookings_orgId_idx" ON "bookings"("orgId");
+CREATE INDEX IF NOT EXISTS "bookings_orgId_eventDate_idx" ON "bookings"("orgId", "eventDate");
+CREATE INDEX IF NOT EXISTS "bookings_customerId_idx" ON "bookings"("customerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bookings_orgId_externalRef_key" ON "bookings"("orgId", "externalRef");
 
--- CreateIndex
-CREATE UNIQUE INDEX "customers_orgId_email_key" ON "customers"("orgId", "email");
+CREATE INDEX IF NOT EXISTS "import_jobs_orgId_idx" ON "import_jobs"("orgId");
+CREATE INDEX IF NOT EXISTS "import_jobs_orgId_kind_idx" ON "import_jobs"("orgId", "kind");
+CREATE INDEX IF NOT EXISTS "import_jobs_orgId_kind_createdAt_idx" ON "import_jobs"("orgId", "kind", "createdAt" DESC);
 
--- CreateIndex
-CREATE INDEX "products_orgId_idx" ON "products"("orgId");
+-- AddForeignKey (use DO blocks so constraint-already-exists doesn't fail)
+DO $$ BEGIN
+  ALTER TABLE "customers" ADD CONSTRAINT "customers_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateIndex
-CREATE INDEX "products_orgId_name_idx" ON "products"("orgId", "name");
+DO $$ BEGIN
+  ALTER TABLE "bookings" ADD CONSTRAINT "bookings_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateIndex
-CREATE INDEX "products_orgId_category_idx" ON "products"("orgId", "category");
+DO $$ BEGIN
+  ALTER TABLE "bookings" ADD CONSTRAINT "bookings_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- CreateIndex
-CREATE UNIQUE INDEX "products_orgId_sku_key" ON "products"("orgId", "sku");
-
--- CreateIndex
-CREATE INDEX "bookings_orgId_idx" ON "bookings"("orgId");
-
--- CreateIndex
-CREATE INDEX "bookings_orgId_eventDate_idx" ON "bookings"("orgId", "eventDate");
-
--- CreateIndex
-CREATE INDEX "bookings_customerId_idx" ON "bookings"("customerId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "bookings_orgId_externalRef_key" ON "bookings"("orgId", "externalRef");
-
--- CreateIndex
-CREATE INDEX "import_jobs_orgId_idx" ON "import_jobs"("orgId");
-
--- CreateIndex
-CREATE INDEX "import_jobs_orgId_kind_idx" ON "import_jobs"("orgId", "kind");
-
--- CreateIndex
-CREATE INDEX "import_jobs_orgId_kind_createdAt_idx" ON "import_jobs"("orgId", "kind", "createdAt" DESC);
-
--- AddForeignKey
-ALTER TABLE "customers" ADD CONSTRAINT "customers_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
