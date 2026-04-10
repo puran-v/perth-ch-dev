@@ -668,7 +668,7 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
           rows={4}
           maxLength={2000}
           placeholder="e.g. Bays are 3m wide — multiply selected width by number of bays for sidewall quantities."
-          className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none resize-y"
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[#1a2f6e] focus:ring-2 focus:ring-[#1a2f6e]/20 resize-y min-h-32 leading-relaxed mt-3"
         />
       </Card>
     </div>
