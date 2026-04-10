@@ -29,6 +29,44 @@ enum OrgSetupStatus {
   COMPLETE
 }
 
+// Author: Puran
+// Impact: lifecycle state for catalogue products (Module A — Products)
+// Reason: the product editor exposes Active / Maintenance / No Price /
+// Inactive in the status dropdown. Mirroring those values as a Postgres
+// enum keeps the DB the source of truth and lets us index by status for
+// the catalogue list filter without typo risk.
+enum ProductStatus {
+  ACTIVE
+  MAINTENANCE
+  NO_PRICE
+  INACTIVE
+}
+
+/// Product pricing model — drives both the Configuration tab in the
+/// admin form AND (later) the quote builder configurator modal that
+/// the sales team uses to add the product to a quote.
+///
+/// - STANDARD        : single fixed `basePrice`, no configuration
+/// - DIMENSION_BASED : priced by width × length via `pricingConfig`
+/// - SIZE_VARIANT    : fixed list of variants in `product_variants`,
+///                     each with its own price + per-variant qty
+/// - QUANTITY_ADDONS : fixed `basePrice` + selectable add-on groups
+///
+/// Add-on groups (`addonGroups` JSONB) can be attached to ANY product
+/// type — they're not exclusive to QUANTITY_ADDONS. See
+/// `src/server/lib/validation/pricing.ts` for the discriminated
+/// validation factory.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (pricing models)
+enum ProductType {
+  STANDARD
+  DIMENSION_BASED
+  SIZE_VARIANT
+  QUANTITY_ADDONS
+}
+
 model Organization {
   id        String    @id @default(cuid())
   name      String
@@ -51,6 +89,309 @@ model Organization {
   importJobs            ImportJob[]
 
   @@map("organizations")
+}
+
+/// Product — catalogue item rented out by the org (Module A — Products).
+///
+/// Every product is org-scoped (§2.1). SKU is unique per org so two
+/// tenants can both use "SKU-001" without collision. `basePrice` is
+/// stored as a whole-dollar integer for V1 — when we move to per-cent
+/// pricing this becomes `basePriceCents` and the migration is mechanical.
+///
+/// `images` and `tags` are Postgres text[] columns rather than separate
+/// tables because the UI only ever reads/writes the full list as a unit
+/// and there are no joins needed against individual values. If we ever
+/// need search-by-tag we can promote `tags` to its own table without
+/// touching the API surface (the response still emits string[]).
+///
+/// Soft-delete only via `deletedAt` (§5.3) — the catalogue keeps history
+/// so old bookings can still resolve a product name even after the row
+/// is hidden from the picker.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products
+model Product {
+  id              String        @id @default(cuid())
+  orgId           String
+  name            String
+  sku             String
+  // Author: Puran
+  // Impact: legacy free-text category column kept for the dual-write
+  //         rollout phase. Once every consumer reads via categoryId,
+  //         a follow-up migration drops this column.
+  // Reason: shipping the FK alongside the existing string lets us
+  //         backfill, dual-write for one PR cycle, and grep for
+  //         stragglers before the destructive drop.
+  category        String
+  // Author: Puran
+  // Impact: nullable FK pointing at the org's ProductCategory list
+  // Reason: nullable until the backfill migration runs and the form
+  //         starts sending categoryId. After the legacy `category`
+  //         column is dropped in the follow-up PR this becomes
+  //         non-null + the read path stops looking at the string.
+  categoryId      String?
+  subcategory     String?
+  description     String?
+  // Author: Puran
+  // Impact: legacy `configurable` boolean kept during the dual-write
+  //         rollout phase. Once the form fully reads `productType`,
+  //         a follow-up PR drops this column.
+  // Reason: same shipping discipline as the categories migration —
+  //         additive in this PR, destructive drop in the next.
+  configurable    Boolean       @default(false)
+  // Author: Puran
+  // Impact: pricing model flag — single source of truth for which
+  //         pricing engine drives this product
+  // Reason: §2 of the Configurable Product Pricing spec — the row's
+  //         productType is the only place this discriminator lives.
+  //         pricingConfig validation reads it to pick the right
+  //         schema; the form reads it to render the right cards.
+  productType     ProductType   @default(STANDARD)
+  // Author: Puran
+  // Impact: model-specific pricing rules stored as a JSONB blob
+  // Reason: dimension-based products carry rate / min area / min
+  //         price / pricing tiers; standard / size_variant /
+  //         quantity_addons all store null. Validated at the API
+  //         boundary by `pricingConfigSchemaForType(productType)`
+  //         in src/server/lib/validation/pricing.ts so the JSON
+  //         shape can never drift from the row's productType.
+  pricingConfig   Json?
+  // Author: Puran
+  // Impact: optional add-on groups attachable to ANY product type
+  // Reason: §6 of the spec — add-on groups are not exclusive to
+  //         QUANTITY_ADDONS products. Stored as JSONB array and
+  //         validated by addonGroupsSchema. Default empty array
+  //         so consumers can map() without a null check.
+  addonGroups     Json?         @default("[]")
+  status          ProductStatus @default(ACTIVE)
+  quantity        Int           @default(0)
+  basePrice       Int           @default(0)
+  setupMinutes    Int           @default(0)
+  packdownMinutes Int           @default(0)
+
+  // Operational tab — staffing
+  // Author: Puran
+  // Impact: how many people are needed for set-up vs running the product
+  // Reason: scheduling AI uses these to size each warehouse task and the
+  //         on-event crew. Stored as Int (no fractional people) and 0
+  //         is a valid "no extra staff" answer rather than null.
+  staffSetup    Int @default(0)
+  staffOperate  Int @default(0)
+
+  // Operational tab — physical dimensions + weight
+  // Author: Puran
+  // Impact: nullable Floats so a product without measurements doesn't
+  //         show "0 m" in the editor — placeholder shows instead
+  // Reason: Float (Postgres double precision) is the right fit for
+  //         measurements; Decimal would be overkill since dimensions
+  //         don't need exact-cents precision the way money does.
+  lengthM         Float?
+  widthM          Float?
+  heightM         Float?
+  weightKg        Float?
+  truckSpaceUnits Int?
+
+  // Operational tab — handling flags
+  // Author: Puran
+  // Impact: multi-select chips like "Requires Power", "Fragile", plus
+  //         custom user-typed flags — all stored in one text[] column
+  // Reason: same pattern as `tags` and `images`. Storage doesn't care
+  //         which strings are presets and which are custom; the UI is
+  //         the only layer that knows the canonical preset list, so
+  //         changing the preset catalogue is a one-line UI edit and
+  //         needs no migration.
+  handlingFlags String[] @default([])
+
+  // Warehouse tab — physical location
+  // Author: Puran
+  // Impact: zone / bay-shelf / free notes that the Module C voice AI
+  //         reads aloud to guide pickers
+  // Reason: nullable strings — most products won't have a fixed
+  //         location until the warehouse is mapped. Empty input
+  //         saves as null so the picker shows the placeholder.
+  warehouseZone          String?
+  warehouseBayShelf      String?
+  warehouseLocationNotes String?
+
+  // Warehouse tab — built-in post-job task toggles
+  // Author: Puran
+  // Impact: each boolean creates the corresponding warehouse task
+  //         when the product returns from a job (Module C)
+  // Reason: four columns instead of a JSON blob so each rule is
+  //         independently indexable / queryable later (e.g. "show me
+  //         every product that needs charging on return"). Adding a
+  //         5th preset is a 2-line migration; removing one stays
+  //         backward-compatible since it just becomes ignored.
+  requiresCleaning        Boolean @default(false)
+  requiresCharging        Boolean @default(false)
+  requiresConsumableCheck Boolean @default(false)
+  requiresInspection      Boolean @default(false)
+
+  // Warehouse tab — custom post-job rule titles
+  // Author: Puran
+  // Impact: org-specific post-job task names beyond the four presets
+  // Reason: same text[] pattern as `tags`, `handlingFlags`, `images`.
+  //         Each entry is a free-form rule title; the rule is always
+  //         "on" — removing it from the array deletes it. Description
+  //         field intentionally dropped (UI only ever showed the title).
+  customPostJobRules String[] @default([])
+
+  // Notes & Rules tab — long-form free text for three audiences
+  // Author: Puran
+  // Impact: per-audience briefing notes consumed by sales (quoting),
+  //         warehouse (pick lists), and the AI quote reviewer
+  // Reason: Postgres TEXT (unbounded) for each — these are written
+  //         like a hand-off brief, not a structured config. The AI
+  //         consumes `aiRules` as a string when reviewing quotes for
+  //         this product specifically; sales/warehouse notes are
+  //         shown verbatim in their respective UIs.
+  salesNotes     String?
+  warehouseNotes String?
+  aiRules        String?
+
+  images          String[]      @default([])
+  tags            String[]      @default([])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Author: Puran
+  // Impact: optional relation to the org-scoped ProductCategory row
+  // Reason: onDelete: Restrict on the FK is enforced at the API layer
+  //         (DELETE category returns 409 if any product still references
+  //         it). Setting onDelete: SetNull would silently orphan products,
+  //         which is exactly what we don't want — admins should reassign.
+  categoryRef ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // Author: Puran
+  // Impact: SIZE_VARIANT products own their variants in the
+  //         product_variants table — each row has its own price
+  //         + per-variant inventory
+  // Reason: §3 of the spec — for size variants, inventory is tracked
+  //         per-variant, NOT at the parent product level. The variant
+  //         id is what eventually lands on reservation rows when the
+  //         quote builder ships.
+  variants    ProductVariant[]
+
+  @@unique([orgId, sku])
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, productType])
+  @@index([orgId, category])
+  @@index([orgId, categoryId])
+  @@index([orgId, deletedAt])
+  @@map("products")
+}
+
+/// ProductVariant — one row per size/spec variant of a SIZE_VARIANT
+/// product (Module A — Products / Size Variants).
+///
+/// Each variant carries its own pricing AND its own inventory count
+/// — that's the "important distinction" called out in §3 of the
+/// pricing spec. A "Jumping Castle" with Small/Medium/Large variants
+/// has six total physical units (3+2+1), and reservations must
+/// reference a specific variant_id, not the parent product_id.
+///
+/// `priceDay`, `priceHalfday`, `priceOvernight` are RATE variants
+/// for the same physical inventory pool — `quantity` is the single
+/// stock count regardless of which rate the customer picks.
+///
+/// Soft-delete via `deletedAt` (§5.3). The DELETE endpoint will
+/// block when a future reservations table holds active rows for
+/// the variant — same `IN_USE` 409 pattern as categories. For V1
+/// (no reservations table yet) the DELETE is unconditional with
+/// a TODO marker.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (Variants)
+model ProductVariant {
+  id             String    @id @default(cuid())
+  orgId          String
+  productId      String
+  label          String
+  description    String?
+  /// Day rate in whole dollars (consistent with Product.basePrice
+  /// — until the app-wide cents migration lands).
+  priceDay       Int
+  priceHalfday   Int?
+  priceOvernight Int?
+  /// PER-VARIANT inventory count. NOT the parent product's qty.
+  quantity       Int       @default(0)
+  /// Optional SKU extension appended to the parent product SKU
+  /// (e.g. "-SM", "-MED", "-LG"). Plain text — no uniqueness
+  /// constraint across variants in V1.
+  skuSuffix      String?
+  sortOrder      Int       @default(0)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  createdBy      String?
+  updatedBy      String?
+
+  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  /// Two variants on the same product can't share a label —
+  /// "Jumping Castle / Medium" is unique. Soft-deleted variants
+  /// are filtered at query time, not here, so a deleted "Medium"
+  /// can be recreated under the same label.
+  @@unique([productId, label])
+  @@index([orgId])
+  @@index([productId, sortOrder])
+  @@index([orgId, deletedAt])
+  @@map("product_variants")
+}
+
+/// ProductCategory — per-org master list of product categories
+/// (Module A — Products).
+///
+/// Each org owns its own categories so two tenants can both define
+/// "Inflatable" without collision (§2.1). Uniqueness is enforced
+/// case-insensitively via the `slug` column rather than `name` so
+/// "Inflatable" / "inflatable" / "INFLATABLE" can never coexist —
+/// the API normalises `slug = name.toLowerCase().trim()` server-side
+/// before insert.
+///
+/// Soft-delete via `deletedAt` (§5.3). Hard delete is blocked at the
+/// API layer when any active product still references the row — the
+/// admin must reassign first via the categories admin page (when it
+/// lands) or by editing each product.
+///
+/// `sortOrder` exists today for the eventual drag-to-reorder UI but is
+/// not exposed in V1; the API simply orders by sortOrder asc, then
+/// name asc, so newly created categories sit at the end of the list
+/// in alphabetical order until reordering ships.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (Categories)
+model ProductCategory {
+  id        String    @id @default(cuid())
+  orgId     String
+  name      String
+  slug      String
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+  @@index([orgId, sortOrder])
+  @@index([orgId, deletedAt])
+  @@map("product_categories")
 }
 
 // Old Author: samir

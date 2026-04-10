@@ -43,6 +43,21 @@ import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { StyledSelect } from "@/components/ui/StyledSelect";
+import type { ProductType } from "@/types/products";
+
+// Author: Puran
+// Impact: Inventory tab now accepts the parent product's productType
+//         so the Stock levels card can hide the parent qty input for
+//         SIZE_VARIANT products (per Q2 sign-off — variant qty is
+//         the source of truth for size variants)
+// Reason: Configurable Product Pricing spec §3 — for size_variant
+//         products, inventory is tracked PER VARIANT in the
+//         product_variants table. The parent quantity column is
+//         unused. Hiding it cleanly prevents the user from entering
+//         a contradictory number.
+export interface InventoryTabProps {
+  productType: ProductType;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -166,10 +181,11 @@ const INFO_BANNER_COPY: Record<SubTabId, string> = {
  * @created 2026-04-07
  * @module Module A - Products (Inventory tab)
  */
-export function InventoryTab() {
+export function InventoryTab({ productType }: InventoryTabProps) {
   // ── Stock levels state ──────────────────────────────────────────────
   const [totalQuantity, setTotalQuantity] = useState("2");
   const [trackingMode, setTrackingMode] = useState("quantity_only");
+  const isSizeVariant = productType === "SIZE_VARIANT";
 
   // ── Sub-tab navigation ──────────────────────────────────────────────
   const [activeSubTab, setActiveSubTab] = useState<SubTabId>("concrete");
@@ -274,42 +290,61 @@ export function InventoryTab() {
       <Card padding="md">
         <p className="text-sm font-semibold text-slate-900">Stock levels</p>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-          <div>
-            <Input
-              label="Total quantity owned *"
-              value={totalQuantity}
-              onChange={(e) => {
-                // Strip non-digits so the input always holds a clean number
-                const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                setTotalQuantity(cleaned);
-              }}
-              placeholder="0"
-              inputMode="numeric"
-            />
-            <p className="mt-1.5 text-xs text-slate-500">
-              Total units available for hire
+        {isSizeVariant ? (
+          // Author: Puran
+          // Impact: SIZE_VARIANT products hide the parent quantity
+          //         input entirely; inventory lives per-variant
+          // Reason: Q2 sign-off — variant qty is the source of truth
+          //         for size variants. The Configuration tab's
+          //         Size options card is where the per-variant
+          //         quantity gets entered.
+          <div className="mt-4 rounded-2xl border border-blue bg-blue-50 px-4 py-3">
+            <p className="text-xs sm:text-sm text-blue leading-relaxed">
+              <strong>Per-variant inventory:</strong> this product
+              tracks stock per size variant. Set the quantity for each
+              size on the <strong>Configuration</strong> tab under{" "}
+              <em>Size options</em>. The total stock is the sum of
+              every active variant.
             </p>
           </div>
-          <div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">
-                Unit-level tracking
-              </label>
-              <StyledSelect
-                value={trackingMode}
-                onChange={(e) => setTrackingMode(e.target.value)}
-                aria-label="Unit-level tracking mode"
-              >
-                <option value="quantity_only">Quantity only (V1)</option>
-                <option value="serial">Serial / Asset tag (V2)</option>
-              </StyledSelect>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+              <Input
+                label="Total quantity owned *"
+                value={totalQuantity}
+                onChange={(e) => {
+                  // Strip non-digits so the input always holds a clean number
+                  const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                  setTotalQuantity(cleaned);
+                }}
+                placeholder="0"
+                inputMode="numeric"
+              />
+              <p className="mt-1.5 text-xs text-slate-500">
+                Total units available for hire
+              </p>
             </div>
-            <p className="mt-1.5 text-xs text-slate-500">
-              Individual unit tracking in Module B
-            </p>
+            <div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  Unit-level tracking
+                </label>
+                <StyledSelect
+                  value={trackingMode}
+                  onChange={(e) => setTrackingMode(e.target.value)}
+                  aria-label="Unit-level tracking mode"
+                >
+                  <option value="quantity_only">Quantity only (V1)</option>
+                  <option value="serial">Serial / Asset tag (V2)</option>
+                </StyledSelect>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">
+                Individual unit tracking in Module B
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
 
       {/* ── Component parts card ─────────────────────────────────────── */}
@@ -351,7 +386,7 @@ export function InventoryTab() {
             })}
           </div>
           <div className="shrink-0">
-            <Button variant="outline" size="sm" onClick={handleCreateNewRule}>
+            <Button variant="outline" size="md" onClick={handleCreateNewRule}>
               Create New Rule
             </Button>
           </div>
@@ -394,7 +429,7 @@ export function InventoryTab() {
                 <button
                   type="button"
                   onClick={handleAddRow}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e]/40 bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
                 >
                   <PlusIcon />
                   Add component
@@ -452,7 +487,7 @@ export function InventoryTab() {
           <button
             type="button"
             onClick={handleAddAccessory}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e]/40 bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
           >
             <PlusIcon />
             Add accessory
@@ -470,22 +505,23 @@ interface InfoBannerProps {
 }
 
 /**
- * Info banner — uses the brand `blue` token (#0062FF from
- * PROJECT_RULES.md §10.1) for the icon + body text, with Tailwind's
- * blue-50 / blue-300 for the lighter shell (the brand only defines a
- * single blue, not a palette, so the shell falls back to the closest
- * Tailwind shades). Same visual treatment used by the Warehouse and
- * Notes & Rules tabs so the form palette stays uniform.
+ * Info banner — brand-blue border + bg + icon + text. Shell uses the
+ * brand `blue` token (#0062FF) for the solid border, Tailwind's
+ * blue-50 for the lighter fill. Same visual treatment used by the
+ * Warehouse and Notes & Rules tabs so the form palette stays uniform.
  *
- * Author: Puran
- * Impact: switched icon + text from text-blue-700 → text-blue (brand)
- * Reason: client confirmed #0062FF is the highlight blue used across
- *         the design — it's our brand `blue` token, not Tailwind's
- *         default blue-700 (#1D4ED8). Always use the token.
+ * Old Author: Puran
+ * New Author: Puran
+ * Impact: bumped border from blue-300 → solid brand blue
+ * Reason: Figma shows the full brand `#0062FF` as the border, not
+ *         the lighter blue-300 tint. blue-300 was too pale to read
+ *         against the card background — the solid brand-blue border
+ *         matches the screenshot exactly and reads as a clear
+ *         "notification" surface.
  */
 function InfoBanner({ text }: InfoBannerProps) {
   return (
-    <div className="rounded-2xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="rounded-2xl border border-blue bg-blue-50 px-4 py-3">
       <div className="flex items-start gap-3">
         <svg
           aria-hidden="true"
@@ -528,18 +564,27 @@ function SimpleComponentsList({
   onRemove,
 }: SimpleComponentsListProps) {
   return (
+    // Author: Puran
+    // Impact: simplified the desktop grid so the Qty Input drops
+    //         straight into its own column instead of being wrapped
+    //         in a flex+md:flex-1 inner row
+    // Reason: the previous wrapper was inheriting flex sizing rules
+    //         from the parent and visually compressing the Qty pill
+    //         even though both inputs share the same h-12 pill class.
+    //         A flat 3-column grid with the column widths declared
+    //         once removes the height-mismatch visual entirely.
     <div className="mt-4 flex flex-col gap-3">
       {rows.map((row) => (
         <div
           key={row.id}
-          className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-2 md:gap-3 md:items-center"
+          className="grid grid-cols-[1fr_auto_auto] gap-3 items-center"
         >
           <Input
             value={row.name}
             onChange={(e) => onChange(row.id, "name", e.target.value)}
             placeholder="Component name"
           />
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="w-24 md:w-32">
             <Input
               value={row.quantity}
               onChange={(e) => {
@@ -548,21 +593,12 @@ function SimpleComponentsList({
               }}
               placeholder="1"
               inputMode="numeric"
-              className="md:flex-1"
-            />
-            <div className="md:hidden">
-              <RemoveButton
-                onClick={() => onRemove(row.id)}
-                label={`Remove component ${row.name || "untitled"}`}
-              />
-            </div>
-          </div>
-          <div className="hidden md:flex md:justify-center md:items-center">
-            <RemoveButton
-              onClick={() => onRemove(row.id)}
-              label={`Remove component ${row.name || "untitled"}`}
             />
           </div>
+          <RemoveButton
+            onClick={() => onRemove(row.id)}
+            label={`Remove component ${row.name || "untitled"}`}
+          />
         </div>
       ))}
     </div>
@@ -708,23 +744,42 @@ interface RemoveButtonProps {
 }
 
 /**
- * Outlined-blue circular delete button — same shape as the Pricing
- * tab tier-row delete so the form family stays uniform.
+ * Outlined navy circular delete button — solid `#1a2f6e` border with
+ * a SLATE × icon inside. Same shape as the Pricing tab tier-row
+ * delete and the Configuration tab option-row delete so the form
+ * family stays uniform.
+ *
+ * Old Author: Puran
+ * New Author: Puran
+ * Impact: × icon stroke is slate-700 (not navy) so it visually
+ *         contrasts with the navy border circle
+ * Reason: Figma shows the × icon as a softer slate stroke against
+ *         the strong navy border ring. Having both at full navy
+ *         made the icon blend into the border and read as a
+ *         single dark blob instead of "ring + glyph".
  */
 function RemoveButton({ onClick, label }: RemoveButtonProps) {
   return (
+    // Author: Puran
+    // Impact: bumped circle from h-9 w-9 (36px) → h-11 w-11 (44px),
+    //         icon from h-4 → h-5, stroke from 2.5 → 2 (cleaner at
+    //         the larger size)
+    // Reason: Figma shows the × circles closer to ~44px with a
+    //         slightly thinner stroke. The smaller h-9 size made
+    //         them look cramped next to the h-12 input pills in
+    //         the same row.
     <button
       type="button"
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1a2f6e]/40 text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#1a2f6e] text-slate-700 transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
       aria-label={label}
     >
       <svg
-        className="h-4 w-4"
+        className="h-5 w-5"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
-        strokeWidth={2.5}
+        strokeWidth={2}
       >
         <path
           strokeLinecap="round"

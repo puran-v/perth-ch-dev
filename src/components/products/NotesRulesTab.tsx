@@ -14,55 +14,65 @@
  *   4. AI product rules card — title + audience subtitle + textarea +
  *      footer disclaimer that these override or supplement global rules.
  *
- * Backend status: same as the other product tabs — entirely client
- * state for V1. Each card is just a labelled textarea; when the API
- * lands the parent ProductEditorForm lifts these via props + onChange.
+ * Backend status: WIRED. Every textarea is a controlled value owned by
+ * the parent `ProductEditorForm`, which round-trips them through
+ * `useCreateProduct` / `useUpdateProduct` to the products API. Empty
+ * input collapses to null in the payload so the DB stores a real
+ * "no notes" state instead of an empty string.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Notes & Rules tab)
  */
 
-// Author: Puran
-// Impact: new dedicated component for the Notes & Rules tab — this
-//         is the sixth and final tab on the product editor
-// Reason: completes the Module A product editor's tab set so every
-//         click in the tab bar lands on real content instead of the
-//         ComingSoonTab placeholder
+// Old Author: Puran
+// New Author: Puran
+// Impact: refactored from local-state placeholder (with seeded mock
+//         strings) into a controlled component owned by ProductEditorForm
+// Reason: matches the OperationalTab and WarehouseTab refactors —
+//         parent owns every value so buildPayload() can roll them
+//         into the same create/update mutation as the other tabs.
+//         Mock seed strings (INITIAL_SALES_NOTES etc.) are gone since
+//         real data flows in from the API now.
 
-import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 
-// ─── Mock seeds ────────────────────────────────────────────────────────
+// ─── Props ─────────────────────────────────────────────────────────────
 
-const INITIAL_SALES_NOTES = `- Always confirm surface type — cannot be set up on loose gravel or sand
-- Minimum space required: 6m × 6m clear area plus 1m clearance on all sides
-- Pair with Snow Cone Machine for kids events — strong upsell combination
-- If client is unsure on size, Big Blue Castle is the safer recommendation
-- Check access route width if delivery address is in a tight residential street`;
+/**
+ * Props for the controlled NotesRulesTab. Three free-form text fields
+ * — one per audience — owned by ProductEditorForm.
+ */
+export interface NotesRulesTabProps {
+  salesNotes: string;
+  onChangeSalesNotes: (v: string) => void;
 
-const INITIAL_WAREHOUSE_NOTES = `- Store deflated and rolled — blower stored on top of the castle roll
-- Check all seams before every hire — pay attention to the entrance arch
-- Peg bag and repair kit must always go in the cab bag`;
+  warehouseNotes: string;
+  onChangeWarehouseNotes: (v: string) => void;
 
-const INITIAL_AI_RULES = `- Always requires 2 staff to set up and pack down
-- Do not book for outdoor events in direct sun when temperature exceeds 35°C
-- If booked for more than 6 hours, schedule a blower check at the midpoint`;
+  aiRules: string;
+  onChangeAiRules: (v: string) => void;
+}
 
 // ─── Component ─────────────────────────────────────────────────────────
 
 /**
- * Renders the full Notes & Rules tab. State is owned locally for V1;
- * lift to the parent form via props when the API lands.
+ * Renders the full Notes & Rules tab as a controlled component. Every
+ * textarea's value comes from the parent form via props.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Notes & Rules tab)
  */
-export function NotesRulesTab() {
-  const [salesNotes, setSalesNotes] = useState(INITIAL_SALES_NOTES);
-  const [warehouseNotes, setWarehouseNotes] = useState(INITIAL_WAREHOUSE_NOTES);
-  const [aiRules, setAiRules] = useState(INITIAL_AI_RULES);
+export function NotesRulesTab(props: NotesRulesTabProps) {
+  const {
+    salesNotes,
+    onChangeSalesNotes,
+    warehouseNotes,
+    onChangeWarehouseNotes,
+    aiRules,
+    onChangeAiRules,
+  } = props;
 
   return (
     <div className="space-y-4">
@@ -74,8 +84,9 @@ export function NotesRulesTab() {
         title="Sales team notes"
         audience="Visible to sales when building a quote"
         value={salesNotes}
-        onChange={setSalesNotes}
+        onChange={onChangeSalesNotes}
         rows={6}
+        placeholder="e.g. Always confirm surface type — cannot be set up on loose gravel or sand"
       />
 
       {/* ── Warehouse team notes card ────────────────────────────────── */}
@@ -83,8 +94,9 @@ export function NotesRulesTab() {
         title="Warehouse team notes"
         audience="Visible to warehouse on pick lists and loading sheets"
         value={warehouseNotes}
-        onChange={setWarehouseNotes}
+        onChange={onChangeWarehouseNotes}
         rows={5}
+        placeholder="e.g. Store deflated and rolled — blower stored on top of the castle roll"
       />
 
       {/* ── AI product rules card ────────────────────────────────────── */}
@@ -92,8 +104,9 @@ export function NotesRulesTab() {
         title="AI product rules"
         audience="Rules the AI applies specifically for this product"
         value={aiRules}
-        onChange={setAiRules}
+        onChange={onChangeAiRules}
         rows={5}
+        placeholder="e.g. Do not book for outdoor events when temperature exceeds 35°C"
         footnote="These override or supplement global rules for this product specifically."
       />
     </div>
@@ -117,7 +130,7 @@ interface InfoBannerProps {
  */
 function InfoBanner({ text }: InfoBannerProps) {
   return (
-    <div className="rounded-2xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="rounded-2xl border border-blue bg-blue-50 px-4 py-3">
       <div className="flex items-start gap-3">
         <svg
           aria-hidden="true"
@@ -133,9 +146,7 @@ function InfoBanner({ text }: InfoBannerProps) {
             d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
           />
         </svg>
-        <p className="text-xs sm:text-sm text-blue leading-relaxed">
-          {text}
-        </p>
+        <p className="text-xs sm:text-sm text-blue leading-relaxed">{text}</p>
       </div>
     </div>
   );
@@ -148,6 +159,7 @@ interface NotesCardProps {
   onChange: (value: string) => void;
   rows?: number;
   footnote?: string;
+  placeholder?: string;
 }
 
 /**
@@ -169,24 +181,37 @@ function NotesCard({
   onChange,
   rows = 5,
   footnote,
+  placeholder,
 }: NotesCardProps) {
+  // Old Author: Puran
+  // New Author: Puran
+  // Impact: bumped card title + audience + textarea text from
+  //         text-sm/text-xs → text-base, and the textarea bg from
+  //         white to slate-50 for the inset look
+  // Reason: Figma shows the notes cards with larger body-base text
+  //         and an inset textarea (slate-50 fill, lighter border)
+  //         instead of the white textarea I had. Title stays
+  //         semibold-medium for the section header treatment;
+  //         audience subtitle gains slate-700 with `font-medium`
+  //         so it reads as a sub-header rather than caption text.
   return (
     <Card padding="md">
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-1 text-xs sm:text-sm text-slate-500">{audience}</p>
+      <p className="text-base font-semibold text-slate-900">{title}</p>
+      <p className="mt-2 text-base font-medium text-slate-700">{audience}</p>
 
       <div className="mt-4">
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
+          placeholder={placeholder}
           aria-label={title}
-          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-[#1a2f6e] focus:ring-2 focus:ring-[#1a2f6e]/20 resize-y min-h-25 leading-relaxed"
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[#1a2f6e] focus:ring-2 focus:ring-[#1a2f6e]/20 resize-y min-h-32 leading-relaxed"
         />
       </div>
 
       {footnote && (
-        <p className="mt-3 text-xs text-slate-500">{footnote}</p>
+        <p className="mt-3 text-sm text-slate-500">{footnote}</p>
       )}
     </Card>
   );

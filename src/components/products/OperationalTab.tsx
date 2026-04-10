@@ -9,38 +9,41 @@
  *   2. Dimensions & weight card — physical dimensions (length / width
  *      / height in metres), weight (kg), and truck space units used
  *      by the warehouse capacity planner.
- *   3. Handling flags card — 3×3 grid of toggleable flag chips with a
- *      "+ Add New Custom Notes" primary button in the header for
- *      defining org-specific flags beyond the built-in set.
+ *   3. Handling flags card — toggleable preset chips. Fixed list, no
+ *      custom add-flag affordance (the Figma calls for presets only).
  *
- * Backend status: same as the other product tabs — entirely client
- * state for V1. When the API lands the parent ProductEditorForm
- * lifts state via props + onChange.
+ * Backend status: WIRED. Every field is a controlled value owned by
+ * the parent `ProductEditorForm`, which round-trips them through
+ * `useCreateProduct` / `useUpdateProduct` to the products API.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Operational tab)
  */
 
-// Author: Puran
-// Impact: new dedicated component for the Operational tab
-// Reason: each tab gets its own file so ProductEditorForm doesn't
-//         balloon as more tabs land. Same pattern as PricingTab and
-//         InventoryTab.
+// Old Author: Puran
+// New Author: Puran
+// Impact: refactored from local-state placeholder into a fully
+//         controlled component owned by ProductEditorForm
+// Reason: the API is live now — keeping state local meant Save
+//         Changes never saw any of these values. Lifting state to
+//         the parent puts every operational field in `buildPayload()`
+//         alongside the Basic Info fields.
 
-import { useState } from "react";
-import { toast } from "react-toastify";
-import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 
-// ─── Types ─────────────────────────────────────────────────────────────
+// ─── Built-in handling flags ───────────────────────────────────────────
 
 /**
- * Built-in handling flags shown in the Handling flags grid. The
- * order is the order they render in the grid (left → right, top →
- * bottom). Custom flags added via "Add New Custom Notes" go at the
- * end of the array.
+ * Built-in handling flags shown in the Handling flags grid. Order is
+ * the order they render in the grid (left → right, top → bottom).
+ * The list is intentionally fixed — no custom flag affordance — and
+ * the column type stays text[] so re-introducing custom flags later
+ * is purely a UI change.
+ *
+ * Adding / renaming / removing a preset is a one-line edit here — no
+ * migration, no DB change.
  */
 const BUILTIN_FLAGS = [
   "Requires Power",
@@ -54,55 +57,110 @@ const BUILTIN_FLAGS = [
   "Overnight capable",
 ] as const;
 
+// ─── Props ─────────────────────────────────────────────────────────────
+
+/**
+ * Every value here is owned by `ProductEditorForm` so the form's
+ * `buildPayload()` can roll it into the create/update mutation.
+ *
+ * Numeric fields use `string` for the editor's display value rather
+ * than `number` so the user can type and clear the field freely; the
+ * parent converts to `number | null` at save time. Dimensions are
+ * nullable in the DB so an empty input → `null`, not `0`.
+ */
+export interface OperationalTabProps {
+  setupMinutes: string;
+  onChangeSetupMinutes: (v: string) => void;
+
+  packdownMinutes: string;
+  onChangePackdownMinutes: (v: string) => void;
+
+  staffSetup: string;
+  onChangeStaffSetup: (v: string) => void;
+
+  staffOperate: string;
+  onChangeStaffOperate: (v: string) => void;
+
+  lengthM: string;
+  onChangeLengthM: (v: string) => void;
+
+  widthM: string;
+  onChangeWidthM: (v: string) => void;
+
+  heightM: string;
+  onChangeHeightM: (v: string) => void;
+
+  weightKg: string;
+  onChangeWeightKg: (v: string) => void;
+
+  truckSpaceUnits: string;
+  onChangeTruckSpaceUnits: (v: string) => void;
+
+  handlingFlags: string[];
+  onChangeHandlingFlags: (v: string[]) => void;
+}
+
 // ─── Component ─────────────────────────────────────────────────────────
 
 /**
- * Renders the full Operational tab. State is owned locally for V1;
- * lift to the parent form via props when the API lands.
+ * Renders the full Operational tab as a controlled component. The
+ * parent form owns all field values and supplies setters; this
+ * component is purely presentation + interaction.
  *
  * @author Puran
  * @created 2026-04-07
  * @module Module A - Products (Operational tab)
  */
-export function OperationalTab() {
-  // ── Setup & packdown state ──────────────────────────────────────────
-  const [setupMinutes, setSetupMinutes] = useState("45");
-  const [packdownMinutes, setPackdownMinutes] = useState("30");
-  const [staffSetup, setStaffSetup] = useState("2");
-  const [staffOperate, setStaffOperate] = useState("1");
+export function OperationalTab(props: OperationalTabProps) {
+  const {
+    setupMinutes,
+    onChangeSetupMinutes,
+    packdownMinutes,
+    onChangePackdownMinutes,
+    staffSetup,
+    onChangeStaffSetup,
+    staffOperate,
+    onChangeStaffOperate,
+    lengthM,
+    onChangeLengthM,
+    widthM,
+    onChangeWidthM,
+    heightM,
+    onChangeHeightM,
+    weightKg,
+    onChangeWeightKg,
+    truckSpaceUnits,
+    onChangeTruckSpaceUnits,
+    handlingFlags,
+    onChangeHandlingFlags,
+  } = props;
 
-  // ── Dimensions & weight state ───────────────────────────────────────
-  const [length, setLength] = useState("6");
-  const [width, setWidth] = useState("5");
-  const [height, setHeight] = useState("4");
-  const [weight, setWeight] = useState("85");
-  const [truckSpace, setTruckSpace] = useState("1");
+  // Old Author: Puran
+  // New Author: Puran
+  // Impact: dropped the custom-flag draft input, helpers, and the
+  //         preset-vs-custom split. Only the built-in preset grid
+  //         remains.
+  // Reason: client confirmed there is no Custom flags row in the
+  //         Figma — handling flags are a fixed set of presets only.
+  //         Removing the inline add input + custom chip row trims
+  //         dead UI without breaking the storage contract (the
+  //         column is still text[] so re-introducing custom flags
+  //         later is purely a UI change).
+  const flagSet = new Set(handlingFlags);
 
-  // ── Handling flags state ────────────────────────────────────────────
-  // Stored as a Set so toggling is O(1) and the same flag can never
-  // accidentally be selected twice. Seeded with the two flags shown
-  // pre-selected in the Figma so the screen looks right on first load.
-  const [flags, setFlags] = useState<Set<string>>(
-    () => new Set(["Requires Power", "Tail lift required"])
-  );
-
-  const toggleFlag = (flag: string) => {
-    setFlags((prev) => {
-      const next = new Set(prev);
-      if (next.has(flag)) {
-        next.delete(flag);
-      } else {
-        next.add(flag);
-      }
-      return next;
-    });
+  const togglePreset = (flag: string) => {
+    if (flagSet.has(flag)) {
+      onChangeHandlingFlags(handlingFlags.filter((f) => f !== flag));
+    } else {
+      onChangeHandlingFlags([...handlingFlags, flag]);
+    }
   };
 
   // Author: Puran
   // Impact: numeric input dispatcher that strips non-digits + decimal
-  // Reason: every numeric field on this tab (minutes, count, length,
-  //         weight, etc.) needs the same "keep it clean" sanitisation.
-  //         A single helper avoids 9 copies of the same regex.
+  // Reason: every numeric field on this tab needs the same "keep it
+  //         clean" sanitisation. A single helper avoids 9 copies of
+  //         the same regex.
   const numericChange =
     (setter: (v: string) => void, allowDecimal = false) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,10 +169,6 @@ export function OperationalTab() {
         : e.target.value.replace(/[^0-9]/g, "");
       setter(cleaned);
     };
-
-  const handleAddCustomNote = () => {
-    toast.info("Custom flag editor — coming soon.");
-  };
 
   return (
     <div className="space-y-4">
@@ -127,7 +181,7 @@ export function OperationalTab() {
             <Input
               label="Default setup time (minutes)"
               value={setupMinutes}
-              onChange={numericChange(setSetupMinutes)}
+              onChange={numericChange(onChangeSetupMinutes)}
               placeholder="0"
               inputMode="numeric"
             />
@@ -139,7 +193,7 @@ export function OperationalTab() {
             <Input
               label="Default packdown time (minutes)"
               value={packdownMinutes}
-              onChange={numericChange(setPackdownMinutes)}
+              onChange={numericChange(onChangePackdownMinutes)}
               placeholder="0"
               inputMode="numeric"
             />
@@ -148,7 +202,7 @@ export function OperationalTab() {
             <Input
               label="Staff required — setup"
               value={staffSetup}
-              onChange={numericChange(setStaffSetup)}
+              onChange={numericChange(onChangeStaffSetup)}
               placeholder="0"
               inputMode="numeric"
             />
@@ -157,7 +211,7 @@ export function OperationalTab() {
             <Input
               label="Staff required — operate / supervise"
               value={staffOperate}
-              onChange={numericChange(setStaffOperate)}
+              onChange={numericChange(onChangeStaffOperate)}
               placeholder="0"
               inputMode="numeric"
             />
@@ -178,22 +232,22 @@ export function OperationalTab() {
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
           <Input
             label="Length (m)"
-            value={length}
-            onChange={numericChange(setLength, true)}
+            value={lengthM}
+            onChange={numericChange(onChangeLengthM, true)}
             placeholder="0"
             inputMode="decimal"
           />
           <Input
             label="Width (m)"
-            value={width}
-            onChange={numericChange(setWidth, true)}
+            value={widthM}
+            onChange={numericChange(onChangeWidthM, true)}
             placeholder="0"
             inputMode="decimal"
           />
           <Input
             label="Height (m)"
-            value={height}
-            onChange={numericChange(setHeight, true)}
+            value={heightM}
+            onChange={numericChange(onChangeHeightM, true)}
             placeholder="0"
             inputMode="decimal"
           />
@@ -203,18 +257,18 @@ export function OperationalTab() {
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           <Input
             label="Weight (kg)"
-            value={weight}
-            onChange={numericChange(setWeight, true)}
+            value={weightKg}
+            onChange={numericChange(onChangeWeightKg, true)}
             placeholder="0"
             inputMode="decimal"
           />
           <div>
             <Input
               label="Truck space (units)"
-              value={truckSpace}
-              onChange={numericChange(setTruckSpace, true)}
+              value={truckSpaceUnits}
+              onChange={numericChange(onChangeTruckSpaceUnits)}
               placeholder="0"
-              inputMode="decimal"
+              inputMode="numeric"
             />
             <p className="mt-1.5 text-xs text-slate-500">
               Used for truck capacity planning
@@ -225,28 +279,22 @@ export function OperationalTab() {
 
       {/* ── Handling flags card ──────────────────────────────────────── */}
       <Card padding="md">
-        {/* Header row — title left, Add New Custom Notes button right.
-            Stacks on small screens so the button doesn't push the title
-            off the edge on 320px. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-slate-900">Handling flags</p>
-          <Button variant="primary" size="sm" onClick={handleAddCustomNote}>
-            Add New Custom Notes
-          </Button>
         </div>
 
-        {/* 3×3 grid of toggleable flag chips. 1 col on mobile, 2 cols on
-            sm, 3 cols on md+ so the grid feels balanced at every width. */}
+        {/* Built-in preset grid — 1 col mobile, 2 sm, 3 md+ */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {BUILTIN_FLAGS.map((flag) => (
             <FlagChip
               key={flag}
               label={flag}
-              selected={flags.has(flag)}
-              onToggle={() => toggleFlag(flag)}
+              selected={flagSet.has(flag)}
+              onToggle={() => togglePreset(flag)}
             />
           ))}
         </div>
+
       </Card>
     </div>
   );
@@ -261,16 +309,24 @@ interface FlagChipProps {
 }
 
 /**
- * Toggleable flag chip — large pill button used in the Handling
- * flags grid. Same colour family as the other "primary highlight"
- * chips on the form (PricingTab Try-an-example, ProductEditorForm
- * Configuration summary) so the visual language stays uniform.
+ * Toggleable preset flag chip. Uses the brand `blue` token (#0062FF)
+ * for the selected state — same family as the InfoBanner / AI bubble /
+ * pricing preview cells across the rest of the form.
  *
- * Selected state: blue outline + light blue bg + blue text.
+ * Selected state: brand-blue solid border + light blue bg + brand-blue text.
  * Unselected: slate outline + white bg + slate text.
  *
  * Uses role="switch" so screen readers know it's a toggle, not a
  * navigation button.
+ *
+ * Old Author: Puran
+ * New Author: Puran
+ * Impact: switched selected state from dark navy (#1a2f6e) tint to
+ *         the brand `blue` token solid border + bg-blue-50 fill +
+ *         text-blue
+ * Reason: Figma shows the selected chips on the same brand `#0062FF`
+ *         family as the rest of the form's info-highlight surfaces.
+ *         The old dark-navy treatment didn't match the screenshot.
  *
  * @author Puran
  * @created 2026-04-07
@@ -286,7 +342,7 @@ function FlagChip({ label, selected, onToggle }: FlagChipProps) {
       className={[
         "h-11 w-full rounded-full border px-4 text-sm font-medium transition-colors cursor-pointer",
         selected
-          ? "border-[#1a2f6e]/50 bg-[#1a2f6e]/5 text-[#1a2f6e]"
+          ? "border-blue bg-blue-50 text-blue"
           : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
       ].join(" ")}
     >

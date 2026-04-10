@@ -396,15 +396,15 @@ export function PricingTab() {
                 <button
                   type="button"
                   onClick={() => handleRemoveTier(tier.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1a2f6e]/40 text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#1a2f6e] text-slate-700 transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
                   aria-label={`Remove tier ${tier.duration || "untitled"}`}
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-5 w-5"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                   >
                     <path
                       strokeLinecap="round"
@@ -423,7 +423,7 @@ export function PricingTab() {
           <button
             type="button"
             onClick={handleAddTier}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e]/40 bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
           >
             <svg
               className="h-4 w-4"
@@ -450,13 +450,22 @@ export function PricingTab() {
         <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Price Preview — what sales team sees
         </p>
+        {/* Author: Puran */}
+        {/* Impact: preview cells now use the brand-blue palette */}
+        {/*         (`bg-blue-50` + `border-blue-300` + `text-blue`) */}
+        {/*         matching the InfoBanner / AI bubble family */}
+        {/* Reason: same source-of-truth principle as the AI bubble — */}
+        {/*         every "info highlight" surface in the form uses */}
+        {/*         the brand `#0062FF` family. The 5% navy tint I had */}
+        {/*         was almost invisible against the card and didn't */}
+        {/*         match the Figma's brighter blue cells. */}
         <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {PRICE_PREVIEW.map((cell) => (
             <div
               key={cell.duration}
-              className="rounded-2xl border border-[#1a2f6e]/15 bg-[#1a2f6e]/5 px-4 py-3 text-center"
+              className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-center"
             >
-              <p className="text-base font-bold text-[#1a2f6e]">{cell.price}</p>
+              <p className="text-base font-bold text-blue">{cell.price}</p>
               <p className="mt-0.5 text-xs text-slate-500">{cell.duration}</p>
             </div>
           ))}
@@ -528,9 +537,20 @@ function UserBubble({ text }: { text: string }) {
 }
 
 /**
- * AI chat bubble — left-aligned, light blue bg, navy "Ai" avatar
- * circle preceding the bubble. The text supports newlines so the
- * structured-pricing reply can render as multiple lines.
+ * AI chat bubble — left-aligned, brand-blue bg + border, navy "Ai"
+ * avatar circle preceding the bubble. The text supports newlines so
+ * the structured-pricing reply can render as multiple lines.
+ *
+ * Author: Puran
+ * Impact: switched bubble bg + border from a 5% navy tint to the
+ *         brand-blue palette (`bg-blue-50` + `border-blue-300`)
+ *         matching the rest of the form's info-banner family
+ * Reason: Figma calls for the brighter brand `#0062FF` family on
+ *         the AI bubble, not the dark navy tint I had. Same colour
+ *         the InfoBanner shells, the SummaryChip primary, and the
+ *         Pricing preview numbers all use — single source of truth.
+ *         The Ai avatar circle stays dark navy because it reads as
+ *         "branded UI chrome" rather than an info highlight.
  */
 function AiBubble({ text }: { text: string }) {
   return (
@@ -538,7 +558,7 @@ function AiBubble({ text }: { text: string }) {
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a2f6e] text-[10px] font-bold text-white">
         Ai
       </div>
-      <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl bg-[#1a2f6e]/5 border border-[#1a2f6e]/15 px-4 py-3 text-sm text-slate-800 whitespace-pre-line">
+      <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl bg-blue-50 border border-blue px-4 py-3 text-sm text-slate-800 whitespace-pre-line">
         {text}
       </div>
     </div>
