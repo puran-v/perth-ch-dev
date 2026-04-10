@@ -390,18 +390,8 @@ export function InventoryTab({ productType }: InventoryTabProps) {
                 rows={baseRows}
                 onChange={handleRowChange}
                 onRemove={handleRemoveRow}
+                onAdd={handleAddRow}
               />
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={handleAddRow}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5"
-                >
-                  <PlusIcon />
-                  Add component
-                </button>
-              </div>
             </>
           )}
         </div>
@@ -516,6 +506,7 @@ interface BaseComponentsListProps {
   rows: ComponentRow[];
   onChange: (id: string, field: keyof ComponentRow, value: string) => void;
   onRemove: (id: string) => void;
+  onAdd: () => void;
 }
 
 /**
@@ -542,6 +533,7 @@ function BaseComponentsList({
   rows,
   onChange,
   onRemove,
+  onAdd,
 }: BaseComponentsListProps) {
   return (
     <div className="mt-4">
@@ -640,6 +632,18 @@ function BaseComponentsList({
           </div>
             </div>
           ))}
+        </div>
+
+        {/* "+ Add component" button inside the bordered card */}
+        <div className="px-5 py-4">
+          <button
+            type="button"
+            onClick={onAdd}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
+          >
+            <PlusIcon />
+            Add component
+          </button>
         </div>
       </div>
     </div>
