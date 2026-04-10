@@ -357,9 +357,13 @@ export function InventoryTab({ productType }: InventoryTabProps) {
             })}
           </div>
           <div className="shrink-0">
-            <Button variant="outline" size="md" onClick={handleCreateNewRule}>
+            <button
+              type="button"
+              onClick={handleCreateNewRule}
+              className="inline-flex items-center justify-center rounded-full bg-[#042E93] px-5 h-10 text-xs font-semibold text-white transition-colors hover:bg-[#042E93]/90 cursor-pointer"
+            >
               Create New Rule
-            </Button>
+            </button>
           </div>
         </div>
 
