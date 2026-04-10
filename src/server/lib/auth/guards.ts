@@ -108,7 +108,13 @@ export type Permission =
   | "team.invite"
   | "team.manage"
   | "role.read"
-  | "role.manage";
+  | "role.manage"
+  // Author: samir
+  // Impact: gates the Module A CSV Import endpoints + the FE page button row
+  // Reason: csv_design.md is a one-time data migration tool — only ADMIN /
+  //         MANAGER should be able to run it. Single permission for all
+  //         three kinds because the Figma surfaces all 3 cards together.
+  | "import.run";
 
 // ── Session resolution ───────────────────────────────────────────────
 
@@ -353,6 +359,10 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
     "finance.read",
     "team.read", "team.update", "team.invite",
     "role.read",
+    // Author: samir
+    // Impact: managers can run the CSV import (cutover from ERS)
+    // Reason: STAFF / DRIVER never touch tenant-level data migration
+    "import.run",
   ],
   STAFF: [
     "booking.read",

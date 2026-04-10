@@ -52,8 +52,8 @@ function createClient(): PrismaClient {
  * exactly the signal we need to rebuild.
  *
  * Returning false here triggers a fresh instantiation — the old
- * instance is disconnected on a best-effort basis to release its
- * connection pool.
+ * instance is left for GC to clean up (explicitly disconnecting it
+ * causes "pool after end" errors for in-flight requests).
  *
  * @param client - The possibly-stale cached client from globalThis
  * @returns Whether `client` can be safely reused
@@ -66,18 +66,11 @@ function isCachedClientCurrent(client: PrismaClient | undefined): client is Pris
   return client instanceof PrismaClient;
 }
 
+// Old Author: samir
+// New Author: samir
+// Impact: removed fire-and-forget $disconnect that caused "Cannot use a pool after calling end on the pool" errors
+// Reason: calling $disconnect ends the pg-pool immediately while in-flight requests still reference it; letting the old client be GC'd is safer in dev
 const cachedClient = globalForPrisma.prisma;
-
-if (cachedClient !== undefined && !isCachedClientCurrent(cachedClient)) {
-  // Schema changed under us — drop the old client and release its pool.
-  // We fire-and-forget $disconnect so this module initialisation stays
-  // synchronous; a leaked connection or two in dev is acceptable.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const disconnect = (cachedClient as any)?.$disconnect;
-  if (typeof disconnect === "function") {
-    void disconnect.call(cachedClient).catch(() => {});
-  }
-}
 
 export const db: PrismaClient = isCachedClientCurrent(cachedClient)
   ? cachedClient

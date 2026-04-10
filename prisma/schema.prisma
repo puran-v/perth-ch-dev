@@ -68,10 +68,10 @@ enum ProductType {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   users                 User[]
@@ -79,9 +79,16 @@ model Organization {
   orgSetup              OrgSetup?
   organizationRoles     OrganizationRole[]
   invitations           Invitation[]
+  // Author: samir
+  // Impact: back-references for the Module A CSV Import models
+  // Reason: every tenant-scoped model needs a relation back to Organization so
+  //         Prisma can enforce the multi-tenant FK and cascade soft semantics
+  customers             Customer[]
   products              Product[]
-  productCategories     ProductCategory[]
   productVariants       ProductVariant[]
+  productCategories     ProductCategory[]
+  bookings              Booking[]
+  importJobs            ImportJob[]
 
   @@map("organizations")
 }
@@ -471,11 +478,11 @@ model User {
 /// Display/metadata only for V1; system RBAC still uses User.role enum.
 /// V2 will wire these modules into guards as effective permissions.
 model OrganizationRole {
-  id          String    @id @default(cuid())
+  id          String  @id @default(cuid())
   orgId       String
   name        String
   description String?
-  sortOrder   Int       @default(0)
+  sortOrder   Int     @default(0)
 
   // System roles are created by the platform (currently only the founding
   // "Admin" role seeded during org-setup completion) and are locked against
@@ -483,21 +490,21 @@ model OrganizationRole {
   // as the source of truth — never rely on the `name` field alone.
   // §5.3 — locked rather than immutable so a future migration could convert
   //        legacy rows or add new system roles without a destructive reset.
-  isSystem    Boolean   @default(false)
+  isSystem Boolean @default(false)
 
   // V1 module access flags — Scope 1 modules A-E
   // Future: replace with a permissions JSON column when V2 fine-grained perms land
-  moduleA     Boolean   @default(false) // Quoting & Booking
-  moduleB     Boolean   @default(false) // Inventory
-  moduleC     Boolean   @default(false) // Warehouse
-  moduleD     Boolean   @default(false) // Finance
-  moduleE     Boolean   @default(false) // Reports (placeholder)
+  moduleA Boolean @default(false) // Quoting & Booking
+  moduleB Boolean @default(false) // Inventory
+  moduleC Boolean @default(false) // Warehouse
+  moduleD Boolean @default(false) // Finance
+  moduleE Boolean @default(false) // Reports (placeholder)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  createdBy   String?
-  updatedBy   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
 
   org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   users       User[]
@@ -540,9 +547,9 @@ model Invitation {
   createdBy String?
   updatedBy String?
 
-  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  organizationRole OrganizationRole  @relation(fields: [organizationRoleId], references: [id])
-  invitedBy        User?             @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+  org              Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organizationRole OrganizationRole @relation(fields: [organizationRoleId], references: [id])
+  invitedBy        User?            @relation("InvitedBy", fields: [invitedByUserId], references: [id])
 
   @@index([orgId])
   @@index([orgId, email])
@@ -625,4 +632,164 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Module A — CSV Import models
+// Author: samir
+// Impact: net-new schema for the one-time ERS migration flow — Customers,
+//         Products, Bookings (header-only for V1) + the ImportJob audit row
+// Reason: csv_design.md spec calls for these tables; the import flow is
+//         the first feature touching the customers / products / bookings
+//         tables, so this PR creates them. Bookings line items deferred
+//         to V2 (BookingItem) — the cutover only needs the booking header.
+// ──────────────────────────────────────────────────────────────────────
+
+/// Which CSV import flow a job belongs to. Mirrors src/types/csv-import.ts StepKind.
+enum ImportKind {
+  CUSTOMERS
+  PRODUCTS
+  BOOKINGS
+}
+
+/// Lifecycle of a single ImportJob row.
+/// V1 is fully synchronous, so jobs flip from RUNNING → COMPLETED|FAILED
+/// inside one HTTP request. The enum is here so the schema is ready when
+/// async/BullMQ lands.
+enum ImportStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// Tri-state payment progress carried over from ERS for an imported booking.
+/// We accept "paid" / "partial" / "unpaid" (case-insensitive) on the wire
+/// and normalise into this enum at insert time.
+enum BookingPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+// Author: samir
+// Impact: Customer model — first persisted-data table on the project
+// Reason: CSV import customers flow needs a destination table; schema mirrors
+//         the customer mapping guide in CsvMappingGuideModal.tsx exactly so
+//         FE field names and DB column names round-trip without translation
+model Customer {
+  id              String   @id @default(cuid())
+  orgId           String
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  mobile          String?
+  company         String?
+  addressLine1    String?
+  addressSuburb   String?
+  addressState    String?
+  addressPostcode String?
+  notes           String?
+  // String[] keeps tags inline on the row — junction table is overkill for
+  // V1 and Postgres handles array contains/overlaps efficiently for the
+  // searches we'll need (e.g. "find all VIP customers")
+  tags            String[] @default([])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  // §2.1 idempotency: re-running the same import must NOT duplicate.
+  // Email is the natural key per tenant per the csv_design.md spec.
+  @@unique([orgId, email])
+  @@index([orgId])
+  @@index([orgId, lastName, firstName])
+  @@map("customers")
+}
+
+// Author: samir
+// Impact: Booking model — header row only for V1; line items deferred
+// Reason: cutover only needs the booking header (date, customer, totals,
+//         payment state) tied back to the customer. Line items can be
+//         backfilled in the booking edit UI when the V2 booking module
+//         lands. Header-only also keeps the bookings CSV format simple.
+model Booking {
+  id                  String               @id @default(cuid())
+  orgId               String
+  // ERS booking reference (e.g. "ERS-12345") — UNIQUE per tenant so the
+  // import is idempotent and operators can cross-reference legacy IDs.
+  externalRef         String
+  customerId          String
+  eventDate           DateTime             @db.Date
+  eventStartTime      String? // HH:MM 24h, validated by Zod regex
+  eventEndTime        String? // HH:MM 24h
+  deliveryAddress     String
+  deliverySuburb      String?
+  deliveryState       String?
+  deliveryPostcode    String?
+  contactPhone        String?
+  specialInstructions String?
+  subtotal            Decimal              @db.Decimal(10, 2)
+  depositPaid         Decimal              @default(0) @db.Decimal(10, 2)
+  // balanceDue is computed at insert time (subtotal - depositPaid) so the
+  // value is consistent with the source-of-truth columns even if depositPaid
+  // is later updated through the booking edit UI
+  balanceDue          Decimal              @default(0) @db.Decimal(10, 2)
+  paymentStatus       BookingPaymentStatus @default(UNPAID)
+  notes               String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@unique([orgId, externalRef])
+  @@index([orgId])
+  @@index([orgId, eventDate])
+  @@index([customerId])
+  @@map("bookings")
+}
+
+// Author: samir
+// Impact: ImportJob — audit row capturing what happened on each import run
+// Reason: powers the status pills on the CSV Import page (Done / Pending /
+//         Importing / Failed) and the per-run results report. Errors are
+//         stored as a JSON array of { row, field, code, message } so the
+//         FE can render the per-row error log without an extra table.
+model ImportJob {
+  id            String       @id @default(cuid())
+  orgId         String
+  kind          ImportKind
+  status        ImportStatus
+  filename      String
+  totalRows     Int          @default(0)
+  importedRows  Int          @default(0)
+  skippedRows   Int          @default(0)
+  failedRows    Int          @default(0)
+  errors        Json? // [{ row: number, field?: string, code: string, message: string }]
+  // Top-level rejection reason when status === FAILED before any row was
+  // processed (e.g. wrong file type, missing headers, > 10k rows)
+  failureReason String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdBy   String?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, kind])
+  // Most-recent-first lookup per kind powers GET /import/status — one
+  // round-trip pulls the latest job for each ImportKind in the org
+  @@index([orgId, kind, createdAt(sort: Desc)])
+  @@map("import_jobs")
 }

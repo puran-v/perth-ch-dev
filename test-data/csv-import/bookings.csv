@@ -1,0 +1,9 @@
+external_ref,customer_email,event_date,delivery_address,subtotal,event_start_time,event_end_time,delivery_suburb,delivery_state,delivery_postcode,contact_phone,deposit_paid,payment_status,special_instructions,notes
+ERS-12001,sarah.johnson@email.com,2026-05-12,12 Beach Road,650.00,09:00,17:00,Cottesloe,WA,6011,0412 345 678,200.00,partial,Setup near the back deck,Repeat customer
+ERS-12002,james.williams@acme.com.au,2026-05-18,44 Park Lane,1850.00,08:00,18:00,Subiaco,WA,6008,0422 555 111,1850.00,paid,Corporate logo signage required,Big event - send confirmation
+ERS-12003,emily.chen@email.com,2026-06-01,9 Hilltop Avenue,480.00,10:00,15:00,Joondalup,WA,6027,0498 765 432,0,unpaid,,
+ERS-12004,michael.obrien@example.com,2026-06-08,18 Bayview Terrace,720.00,,,Claremont,WA,6010,0466 777 888,360.00,partial,Allergic to latex - check materials,
+ERS-12005,olivia.taylor@email.com,2026-06-15,87 Karinya Way,520.00,09:30,16:30,Currambine,WA,6028,0411 222 333,0,unpaid,School fundraiser - donation receipt needed,
+ERS-12006,david.nguyen@bigevents.com.au,2026-07-04,"Suite 5, 200 William Street",3200.00,07:00,22:00,Northbridge,WA,6003,0455 999 222,3200.00,paid,Net 30 invoiced,Premium corporate booking
+ERS-12007,mia.patel@email.com,2026-07-12,33 Tree Avenue,420.00,11:00,16:00,Mount Lawley,WA,6050,0488 111 999,150.00,partial,,
+ERS-12008,liam.kowalski@email.com,2026-07-20,55 Ocean Drive,580.00,12:00,18:00,Scarborough,WA,6019,0410 555 666,580.00,paid,Saturday delivery confirmed,
