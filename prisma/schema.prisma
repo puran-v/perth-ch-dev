@@ -85,6 +85,8 @@ model Organization {
   //         Prisma can enforce the multi-tenant FK and cascade soft semantics
   customers             Customer[]
   products              Product[]
+  productVariants       ProductVariant[]
+  productCategories     ProductCategory[]
   bookings              Booking[]
   importJobs            ImportJob[]
 
@@ -699,57 +701,6 @@ model Customer {
   @@index([orgId])
   @@index([orgId, lastName, firstName])
   @@map("customers")
-}
-
-// Author: samir
-// Impact: Product model — destination for the products CSV import
-// Reason: every product is rentable inventory; fields cover the basics needed
-//         for the rentals + scheduling flow without locking V2 product mgmt
-//         out of adding more columns later
-model Product {
-  id              String   @id @default(cuid())
-  orgId           String
-  // SKU is optional but UNIQUE per org when present — Postgres allows
-  // multiple NULLs in a unique index by default, which is the behaviour
-  // we want. Bookings reference products by SKU on import, so any product
-  // a tenant wants to import bookings against MUST have a SKU.
-  sku             String?
-  name            String
-  category        String?
-  description     String?
-  // Decimal for currency amounts — never use Float for money
-  dailyRate       Decimal  @db.Decimal(10, 2)
-  weeklyRate      Decimal? @db.Decimal(10, 2)
-  // How many physical units the tenant owns. Drives availability checks
-  // in the booking module (§2.2 spec) — defaults to 1 so a freshly imported
-  // product is at least bookable.
-  totalQuantity   Int      @default(1)
-  weightKg        Decimal? @db.Decimal(8, 2)
-  lengthCm        Decimal? @db.Decimal(8, 2)
-  widthCm         Decimal? @db.Decimal(8, 2)
-  heightCm        Decimal? @db.Decimal(8, 2)
-  setupMinutes    Int?
-  packdownMinutes Int?
-  powerRequired   Boolean  @default(false)
-  ageGroupMin     Int?
-  ageGroupMax     Int?
-  maxOccupancy    Int?
-  safetyNotes     String?
-  tags            String[] @default([])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  createdBy String?
-  updatedBy String?
-
-  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  @@unique([orgId, sku])
-  @@index([orgId])
-  @@index([orgId, name])
-  @@index([orgId, category])
-  @@map("products")
 }
 
 // Author: samir
