@@ -78,6 +78,7 @@ import type {
   UpdateVariantInput,
 } from "@/types/products";
 import {
+  centsToDollarString,
   computeDimensionPreview,
   dollarStringToCents,
 } from "@/lib/products/pricing";
@@ -443,6 +444,45 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
       : "200"
   );
 
+  // ── base_plus_sqm fields ────────────────────────────────────────────
+  // Author: Puran
+  // Impact: state slices for the `base_plus_sqm` pricing method
+  // Reason: spec §4 method 3
+  const [basePrice, setBasePrice] = useState(
+    initialDimConfig?.basePrice !== undefined
+      ? String(initialDimConfig.basePrice)
+      : "200"
+  );
+  const [overheadRateDollars, setOverheadRateDollars] = useState(
+    initialDimConfig?.overheadRateCents !== undefined
+      ? centsToDollarString(initialDimConfig.overheadRateCents).replace(
+          /\.00$/,
+          ""
+        )
+      : "6"
+  );
+
+  // ── flat_tier rows ──────────────────────────────────────────────────
+  // Author: Puran
+  // Impact: tier rows as string-keyed drafts, same as VariantDraft
+  // Reason: spec §4 method 2
+  interface TierDraft {
+    key: string;
+    areaFrom: string;
+    areaTo: string;
+    price: string;
+  }
+  const initialTiers: TierDraft[] =
+    initialDimConfig?.pricingTiers && initialDimConfig.pricingTiers.length > 0
+      ? initialDimConfig.pricingTiers.map((t, idx) => ({
+          key: `t-init-${idx}`,
+          areaFrom: String(t.areaFrom),
+          areaTo: String(t.areaTo),
+          price: String(t.price),
+        }))
+      : [{ key: "t-seed", areaFrom: "0", areaTo: "9", price: "200" }];
+  const [pricingTiers, setPricingTiers] = useState<TierDraft[]>(initialTiers);
+
   // ── Variants (SIZE_VARIANT products) ────────────────────────────────
   //
   // Author: Puran
@@ -626,7 +666,11 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
   //         the JSON shape sent to the API.
   const buildPricingConfig = (): DimensionBasedConfig | null => {
     if (productType !== "DIMENSION_BASED") return null;
-    return {
+    // Author: Puran
+    // Impact: branches by pricingMethod — only emits fields for the
+    //         chosen method so stale state never persists
+    // Reason: spec §4 — three methods, three distinct field sets
+    const base = {
       dim1Label: dim1Label.trim() || "Width (m)",
       dim2Label: dim2Label.trim() || null,
       dimMin: parseFloat(dimMin) || 0,
@@ -635,18 +679,33 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
       dimDefault1: parseFloat(dimDefault1) || 0,
       dimDefault2: dimDefault2 ? parseFloat(dimDefault2) : null,
       pricingMethod,
-      // Only the per_sqm fields are wired in V1 — flat_tier and
-      // base_plus_sqm UI is part of the future "Pricing method" enum
-      // expansion. The Zod schema accepts the other methods so the
-      // contract is forward-compatible; the form just doesn't expose
-      // them yet.
-      ratePerSqmCents:
-        pricingMethod === "per_sqm"
-          ? dollarStringToCents(ratePerSqmDollars) ?? 0
-          : undefined,
-      minArea: parseFloat(minArea) || 0,
-      minPrice: parseFloat(minPrice) || 0,
     };
+    switch (pricingMethod) {
+      case "per_sqm":
+        return {
+          ...base,
+          ratePerSqmCents: dollarStringToCents(ratePerSqmDollars) ?? 0,
+          minArea: parseFloat(minArea) || 0,
+          minPrice: parseFloat(minPrice) || 0,
+        };
+      case "base_plus_sqm":
+        return {
+          ...base,
+          basePrice: parseFloat(basePrice) || 0,
+          overheadRateCents: dollarStringToCents(overheadRateDollars) ?? 0,
+          minArea: parseFloat(minArea) || 0,
+        };
+      case "flat_tier":
+        return {
+          ...base,
+          pricingTiers: pricingTiers.map((t) => ({
+            areaFrom: parseFloat(t.areaFrom) || 0,
+            areaTo: parseFloat(t.areaTo) || 0,
+            price: parseFloat(t.price) || 0,
+          })),
+          minPrice: parseFloat(minPrice) || 0,
+        };
+    }
   };
 
   const buildPayload = (): CreateProductInput => ({
@@ -937,8 +996,9 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
         }
       }
 
-      // Per-sqm specific — only the per_sqm input cluster is wired
-      // in V1, so only its required fields get validated here.
+      // Author: Puran
+      // Impact: per-method validation — each branch validates its own fields
+      // Reason: spec §4 — three methods, three field sets
       if (pricingMethod === "per_sqm") {
         const cents = dollarStringToCents(ratePerSqmDollars);
         if (cents === null || cents < 0) {
@@ -970,6 +1030,82 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
             "configuration"
           );
         }
+      } else if (pricingMethod === "base_plus_sqm") {
+        const baseN = parseFloat(basePrice);
+        if (basePrice.trim() === "" || !Number.isFinite(baseN) || baseN < 0) {
+          fail(
+            "config.basePrice",
+            "Base price must be a positive number.",
+            "configuration"
+          );
+        }
+        const overheadCents = dollarStringToCents(overheadRateDollars);
+        if (overheadCents === null || overheadCents < 0) {
+          fail(
+            "config.overheadRate",
+            "Overhead rate must be a positive number.",
+            "configuration"
+          );
+        }
+        const minAreaN = parseFloat(minArea);
+        if (
+          minArea.trim() !== "" &&
+          (!Number.isFinite(minAreaN) || minAreaN < 0)
+        ) {
+          fail(
+            "config.minArea",
+            "Minimum area must be ≥ 0.",
+            "configuration"
+          );
+        }
+      } else if (pricingMethod === "flat_tier") {
+        if (pricingTiers.length === 0) {
+          fail(
+            "config.pricingTiers",
+            "Add at least one pricing tier.",
+            "configuration"
+          );
+        }
+        pricingTiers.forEach((t, idx) => {
+          const fromN = parseFloat(t.areaFrom);
+          const toN = parseFloat(t.areaTo);
+          const priceN = parseFloat(t.price);
+          if (
+            t.areaFrom.trim() === "" ||
+            !Number.isFinite(fromN) ||
+            fromN < 0
+          ) {
+            fail(
+              `config.pricingTiers.${idx}.areaFrom`,
+              "Area from must be ≥ 0.",
+              "configuration"
+            );
+          }
+          if (t.areaTo.trim() === "" || !Number.isFinite(toN) || toN < 0) {
+            fail(
+              `config.pricingTiers.${idx}.areaTo`,
+              "Area to must be ≥ 0.",
+              "configuration"
+            );
+          } else if (Number.isFinite(fromN) && toN < fromN) {
+            fail(
+              `config.pricingTiers.${idx}.areaTo`,
+              "Area to must be ≥ area from.",
+              "configuration"
+            );
+          }
+          if (
+            t.price.trim() === "" ||
+            !Number.isFinite(priceN) ||
+            priceN < 0
+          ) {
+            fail(
+              `config.pricingTiers.${idx}.price`,
+              "Tier price must be ≥ 0.",
+              "configuration"
+            );
+          }
+        });
       }
     }
 
@@ -1243,6 +1379,35 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     });
   };
 
+  // Author: Puran
+  // Impact: pricing tier CRUD helpers
+  // Reason: spec §4 method 2 — tiers live inside pricingConfig JSONB
+  const handleAddTier = () => {
+    setPricingTiers((prev) => {
+      const last = prev[prev.length - 1];
+      const nextFrom = last && last.areaTo ? last.areaTo : "0";
+      return [
+        ...prev,
+        {
+          key: `t-new-${Date.now().toString(36)}-${prev.length}`,
+          areaFrom: nextFrom,
+          areaTo: "",
+          price: "",
+        },
+      ];
+    });
+  };
+
+  const handleTierChange = (key: string, patch: Partial<TierDraft>) => {
+    setPricingTiers((prev) =>
+      prev.map((t) => (t.key === key ? { ...t, ...patch } : t))
+    );
+  };
+
+  const handleRemoveTier = (key: string) => {
+    setPricingTiers((prev) => prev.filter((t) => t.key !== key));
+  };
+
   // Add-on group helpers — operate on the lifted addonGroups state.
   // These mirror the helpers that used to live inside ConfigurationTab,
   // just promoted to the parent so the data flows through buildPayload.
@@ -1347,12 +1512,16 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
       dimDefault1: parseFloat(dimDefault1) || 0,
       dimDefault2: dimDefault2 ? parseFloat(dimDefault2) : null,
       pricingMethod,
-      ratePerSqmCents:
-        pricingMethod === "per_sqm"
-          ? dollarStringToCents(ratePerSqmDollars) ?? 0
-          : undefined,
+      ratePerSqmCents: dollarStringToCents(ratePerSqmDollars) ?? 0,
       minArea: parseFloat(minArea) || 0,
       minPrice: parseFloat(minPrice) || 0,
+      basePrice: parseFloat(basePrice) || 0,
+      overheadRateCents: dollarStringToCents(overheadRateDollars) ?? 0,
+      pricingTiers: pricingTiers.map((t) => ({
+        areaFrom: parseFloat(t.areaFrom) || 0,
+        areaTo: parseFloat(t.areaTo) || 0,
+        price: parseFloat(t.price) || 0,
+      })),
     };
     return computeDimensionPreview(config);
   }, [
@@ -1368,6 +1537,9 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     ratePerSqmDollars,
     minArea,
     minPrice,
+    basePrice,
+    overheadRateDollars,
+    pricingTiers,
   ]);
 
   // Author: Puran
@@ -1796,6 +1968,14 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
           onChangeMinArea={setMinArea}
           minPrice={minPrice}
           onChangeMinPrice={setMinPrice}
+          basePrice={basePrice}
+          onChangeBasePrice={setBasePrice}
+          overheadRateDollars={overheadRateDollars}
+          onChangeOverheadRateDollars={setOverheadRateDollars}
+          pricingTiers={pricingTiers}
+          onAddTier={handleAddTier}
+          onChangeTier={handleTierChange}
+          onRemoveTier={handleRemoveTier}
           pricingPreview={dimensionPreview}
           variants={variants}
           onAddVariant={handleAddVariant}
