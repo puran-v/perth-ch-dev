@@ -109,6 +109,22 @@ export interface VariantDraft {
   active: boolean;
 }
 
+/**
+ * One row in the flat-tier pricing table. All numeric fields are
+ * held as display strings so the inputs can be cleared without
+ * flipping to NaN — same convention as VariantDraft.
+ *
+ * @author Puran
+ * @created 2026-04-10
+ * @module Module A - Products (Configuration tab)
+ */
+export interface TierDraft {
+  key: string;
+  areaFrom: string;
+  areaTo: string;
+  price: string;
+}
+
 export interface ConfigurationTabProps {
   /** Are we in create mode (no parent id yet)? Disables variants. */
   isCreate: boolean;
@@ -136,6 +152,7 @@ export interface ConfigurationTabProps {
   // ── Base pricing formula (DIMENSION_BASED only) ──────────────────
   pricingMethod: PricingMethod;
   onChangePricingMethod: (v: PricingMethod) => void;
+  // per_sqm cluster
   /** User-facing dollar string (e.g. "5.50"). Cents conversion
    *  happens in the parent's `buildPricingConfig`. */
   ratePerSqmDollars: string;
@@ -144,6 +161,16 @@ export interface ConfigurationTabProps {
   onChangeMinArea: (v: string) => void;
   minPrice: string;
   onChangeMinPrice: (v: string) => void;
+  // base_plus_sqm cluster
+  basePrice: string;
+  onChangeBasePrice: (v: string) => void;
+  overheadRateDollars: string;
+  onChangeOverheadRateDollars: (v: string) => void;
+  // flat_tier cluster
+  pricingTiers: TierDraft[];
+  onAddTier: () => void;
+  onChangeTier: (key: string, patch: Partial<TierDraft>) => void;
+  onRemoveTier: (key: string) => void;
 
   /** Live pricing preview cells, computed in the parent via the
    *  shared `computeDimensionPreview` helper. */
@@ -207,6 +234,14 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
     onChangeMinArea,
     minPrice,
     onChangeMinPrice,
+    basePrice,
+    onChangeBasePrice,
+    overheadRateDollars,
+    onChangeOverheadRateDollars,
+    pricingTiers,
+    onAddTier,
+    onChangeTier,
+    onRemoveTier,
     pricingPreview,
     variants,
     onAddVariant,
@@ -326,17 +361,9 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
           </p>
 
           {/* Author: Puran */}
-          {/* Impact: Pricing method dropdown exposes all three spec */}
-          {/*         methods. Only `per_sqm` has its dedicated input */}
-          {/*         cluster wired in V1, but the dropdown lets the */}
-          {/*         user pick any of the three so the discriminator */}
-          {/*         persists correctly when the other input clusters */}
-          {/*         land in a follow-up PR. */}
-          {/* Reason: backend is fully forward-compatible — Zod */}
-          {/*         accepts all three methods, `computeDimensionPrice` */}
-          {/*         computes all three. Adding the new input */}
-          {/*         clusters later is a pure frontend job; no */}
-          {/*         schema, API, or math change. */}
+          {/* Impact: Pricing method dropdown + three conditional input */}
+          {/*         clusters keyed off `pricingMethod`. */}
+          {/* Reason: spec §4 — three methods, three field sets. */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">
@@ -355,45 +382,155 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
                 </option>
               </StyledSelect>
             </div>
-            <Input
-              label="Rate per sqm ($)"
-              value={ratePerSqmDollars}
-              onChange={(e) =>
-                onChangeRatePerSqmDollars(
-                  e.target.value.replace(/[^0-9.]/g, "")
-                )
-              }
-              placeholder="$ 0.00"
-            />
-            <div>
-              <Input
-                label="Minimum area (sqm)"
-                value={minArea}
-                onChange={(e) =>
-                  onChangeMinArea(e.target.value.replace(/[^0-9.]/g, ""))
-                }
-                placeholder="0"
-                inputMode="decimal"
-              />
-              <p className="mt-1.5 text-xs text-slate-500">
-                Minimum charge area regardless of dimensions selected
-              </p>
-            </div>
-            <div>
-              <Input
-                label="Minimum price ($)"
-                value={minPrice}
-                onChange={(e) =>
-                  onChangeMinPrice(e.target.value.replace(/[^0-9]/g, ""))
-                }
-                placeholder="$ 0"
-                inputMode="numeric"
-              />
-              <p className="mt-1.5 text-xs text-slate-500">
-                Floor price — quote never goes below this
-              </p>
-            </div>
           </div>
+
+          {/* ── Per-sqm cluster ─────────────────────────────────────── */}
+          {pricingMethod === "per_sqm" && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <Input
+                label="Rate per sqm ($)"
+                value={ratePerSqmDollars}
+                onChange={(e) =>
+                  onChangeRatePerSqmDollars(
+                    e.target.value.replace(/[^0-9.]/g, "")
+                  )
+                }
+                placeholder="$ 0.00"
+              />
+              <div>
+                <Input
+                  label="Minimum area (sqm)"
+                  value={minArea}
+                  onChange={(e) =>
+                    onChangeMinArea(e.target.value.replace(/[^0-9.]/g, ""))
+                  }
+                  placeholder="0"
+                  inputMode="decimal"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Minimum charge area regardless of dimensions selected
+                </p>
+              </div>
+              <div>
+                <Input
+                  label="Minimum price ($)"
+                  value={minPrice}
+                  onChange={(e) =>
+                    onChangeMinPrice(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  placeholder="$ 0"
+                  inputMode="numeric"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Floor price — quote never goes below this
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Base + per sqm cluster ──────────────────────────────── */}
+          {pricingMethod === "base_plus_sqm" && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <div>
+                <Input
+                  label="Base price ($)"
+                  value={basePrice}
+                  onChange={(e) =>
+                    onChangeBasePrice(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  placeholder="$ 0"
+                  inputMode="numeric"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Covers everything up to the minimum area below
+                </p>
+              </div>
+              <div>
+                <Input
+                  label="Minimum area (sqm)"
+                  value={minArea}
+                  onChange={(e) =>
+                    onChangeMinArea(e.target.value.replace(/[^0-9.]/g, ""))
+                  }
+                  placeholder="0"
+                  inputMode="decimal"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Threshold — area above this is charged at the overhead rate
+                </p>
+              </div>
+              <div>
+                <Input
+                  label="Overhead rate per extra sqm ($)"
+                  value={overheadRateDollars}
+                  onChange={(e) =>
+                    onChangeOverheadRateDollars(
+                      e.target.value.replace(/[^0-9.]/g, "")
+                    )
+                  }
+                  placeholder="$ 0.00"
+                  inputMode="decimal"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Charged on every sqm above the minimum
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Flat tier cluster ───────────────────────────────────── */}
+          {pricingMethod === "flat_tier" && (
+            <div className="mt-4">
+              <div className="rounded-2xl border border-slate-200 bg-white">
+                <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_auto] gap-3 px-4 py-3 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <span>Area from (m²)</span>
+                  <span>Area to (m²)</span>
+                  <span>Price ($)</span>
+                  <span className="sr-only">Remove</span>
+                </div>
+                {pricingTiers.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-sm text-slate-500">
+                    No tiers yet — add at least one row.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {pricingTiers.map((tier) => (
+                      <PricingTierRow
+                        key={tier.key}
+                        tier={tier}
+                        onChange={(patch) => onChangeTier(tier.key, patch)}
+                        onRemove={() => onRemoveTier(tier.key)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={onAddTier}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-10 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer self-start"
+                >
+                  <PlusIcon />
+                  Add tier
+                </button>
+                <div className="sm:max-w-xs sm:w-1/2">
+                  <Input
+                    label="Fallback floor price ($)"
+                    value={minPrice}
+                    onChange={(e) =>
+                      onChangeMinPrice(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                    placeholder="$ 0"
+                    inputMode="numeric"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Used when the selected area doesn&rsquo;t match any tier
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Live pricing preview computed in the parent via the
               shared `computeDimensionPreview` helper. */}
@@ -611,6 +748,82 @@ function PricingPreviewCellView({
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-base font-bold text-blue">{price}</p>
       <p className="mt-0.5 text-xs text-slate-500">{area}</p>
+    </div>
+  );
+}
+
+interface PricingTierRowProps {
+  tier: TierDraft;
+  onChange: (patch: Partial<TierDraft>) => void;
+  onRemove: () => void;
+}
+
+/**
+ * One row in the flat-tier pricing table — area-from / area-to /
+ * price + delete. Mobile wraps in a slate-50 card with per-field
+ * labels, same pattern as VariantRow.
+ *
+ * @author Puran
+ * @created 2026-04-10
+ * @module Module A - Products (Configuration tab)
+ */
+function PricingTierRow({ tier, onChange, onRemove }: PricingTierRowProps) {
+  const rangeLabel =
+    tier.areaFrom && tier.areaTo
+      ? `${tier.areaFrom}–${tier.areaTo} m²`
+      : "untitled tier";
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid sm:grid-cols-[1fr_1fr_1fr_auto] sm:gap-3 sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:p-3">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2 sm:block">
+          <label className="sm:hidden text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Area from (m²)
+          </label>
+          <div className="sm:hidden">
+            <RemoveButton
+              onClick={onRemove}
+              label={`Remove tier ${rangeLabel}`}
+            />
+          </div>
+        </div>
+        <Input
+          value={tier.areaFrom}
+          onChange={(e) =>
+            onChange({ areaFrom: e.target.value.replace(/[^0-9.]/g, "") })
+          }
+          placeholder="0"
+          inputMode="decimal"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="sm:hidden text-xs font-medium text-slate-500">
+          Area to (m²)
+        </label>
+        <Input
+          value={tier.areaTo}
+          onChange={(e) =>
+            onChange({ areaTo: e.target.value.replace(/[^0-9.]/g, "") })
+          }
+          placeholder="9"
+          inputMode="decimal"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="sm:hidden text-xs font-medium text-slate-500">
+          Price ($)
+        </label>
+        <Input
+          value={tier.price ? `$${tier.price}` : ""}
+          onChange={(e) =>
+            onChange({ price: e.target.value.replace(/[^0-9]/g, "") })
+          }
+          placeholder="$0"
+          inputMode="numeric"
+        />
+      </div>
+      <div className="hidden sm:flex sm:justify-center sm:items-center">
+        <RemoveButton onClick={onRemove} label={`Remove tier ${rangeLabel}`} />
+      </div>
     </div>
   );
 }
