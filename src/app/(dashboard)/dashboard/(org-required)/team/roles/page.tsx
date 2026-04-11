@@ -155,21 +155,21 @@ export default function RolesPage() {
           <div className="hidden md:block overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto">
               <table className="w-full min-w-160">
-                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="whitespace-nowrap px-6 py-3">Name</th>
-                    <th className="whitespace-nowrap px-6 py-3">Modules</th>
-                    <th className="w-32 whitespace-nowrap px-6 py-3 text-right">
+                <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-black">
+                  <tr className="font-medium">
+                    <th className="whitespace-nowrap font-medium text-black px-6 py-3">Name</th>
+                    <th className="whitespace-nowrap font-medium text-black px-6 py-3">Modules</th>
+                    <th className="w-32 whitespace-nowrap font-medium text-black px-6 py-3 text-right">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {roles.map((role) => (
-                    <tr key={role.id} className="hover:bg-slate-50/70">
+                    <tr key={role.id} className="font-normal hover:bg-slate-50/70">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-slate-900">
+                          <p className="text-sm font-normal text-slate-600">
                             {role.name}
                           </p>
                           {role.isSystem && <SystemRoleBadge />}
@@ -227,7 +227,7 @@ export default function RolesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-normal text-slate-600">
                         {role.name}
                       </p>
                       {role.isSystem && <SystemRoleBadge />}

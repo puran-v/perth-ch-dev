@@ -141,25 +141,25 @@ export function UsersTab() {
       <div className="hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-256">
-            <thead className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Name</th>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Email</th>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Role</th>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Last Active</th>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3">Status</th>
-                <th className="whitespace-nowrap text-black font-semibold px-6 py-3 text-right">
+            <thead className="bg-slate-50/60 text-left text-xs font-medium uppercase tracking-wide text-black">
+              <tr className="font-medium">
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3">Name</th>
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3">Email</th>
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3">Role</th>
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3">Last Active</th>
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3">Status</th>
+                <th className="whitespace-nowrap text-black font-medium px-6 py-3 text-right">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {members.map((m) => (
-                <tr key={m.id} className="hover:bg-slate-50/40">
+                <tr key={m.id} className="font-normal hover:bg-slate-50/40">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <Avatar name={m.fullName} />
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm font-normal text-slate-600">
                         {m.fullName}
                       </p>
                     </div>
@@ -208,7 +208,7 @@ export function UsersTab() {
             <div className="flex items-start gap-3">
               <Avatar name={m.fullName} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900">
+                <p className="truncate text-sm font-normal text-slate-600">
                   {m.fullName}
                 </p>
                 <p className="truncate text-xs text-slate-500">{m.email}</p>
