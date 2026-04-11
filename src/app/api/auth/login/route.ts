@@ -21,7 +21,11 @@ const ROUTE = "/api/auth/login";
  *
  * Flow: Validate input -> Rate limit (IP + email) -> Verify credentials -> Create session
  *
- * @param req - The incoming request with { email, password }
+ * Session lifetime is driven by the optional `rememberMe` flag on the body:
+ *  - rememberMe = true  → 30 days (long-lived "keep me signed in")
+ *  - rememberMe = false → 1 day  (default, safer for shared workstations)
+ *
+ * @param req - The incoming request with { email, password, rememberMe? }
  * @returns User data with session cookie (200) or error response
  *
  * @author samir
@@ -49,7 +53,10 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    const { email, password } = parsed.data;
+    // Author: samir
+    // Impact: pull rememberMe out of the parsed body so we can pass it to createSession()
+    // Reason: drives the session-cookie lifetime — checked = 30-day session, unchecked = 1-day session. Defaulted to false in the schema, so legacy clients (and tests) that omit the field still get the safer short-lived session.
+    const { email, password, rememberMe } = parsed.data;
 
     // Step 2: Rate limit on both IP and email to slow brute force
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -68,8 +75,9 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Step 3: Load user — only select fields needed for auth check + response
+    // §5.3: filter out soft-deleted users
     const user = await db.user.findUnique({
-      where: { email },
+      where: { email, deletedAt: null },
       select: { id: true, fullName: true, email: true, role: true, passwordHash: true, isVerified: true },
     });
 
@@ -106,9 +114,9 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Step 6: Create session + build cookie header
-    const { token, expiresAt } = await createSession(user.id);
+    const { token, expiresAt } = await createSession(user.id, { rememberMe });
 
-    logger.info("Login successful", { ...ctx, userId: user.id });
+    logger.info("Login successful", { ...ctx, userId: user.id, rememberMe });
 
     const responseBody = {
       success: true as const,

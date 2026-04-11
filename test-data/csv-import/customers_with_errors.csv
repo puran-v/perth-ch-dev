@@ -1,0 +1,7 @@
+first_name,last_name,email,phone,mobile,company,address_line1,address_suburb,address_state,address_postcode,notes,tags
+,Smith,test1@example.com,,,,,,,,Missing first_name (row 2),
+Jane,Doe,not-an-email,,,,,,,,Bad email format (row 3),
+Bob,Brown,,,,,,,,,Missing email (row 4),
+Charlie,Davis,charlie@example.com,,,,,,,,Valid row 5,
+Diana,Evans,charlie@example.com,,,,,,,,Duplicate of row 5 - should be flagged DUPLICATE_IN_FILE,
+Frank,Garcia,frank@example.com,,,,,,,,Valid row 7 - second clean row,

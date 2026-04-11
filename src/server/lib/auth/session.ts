@@ -16,22 +16,57 @@
 import crypto from "crypto";
 import { db } from "@/server/db/client";
 
-const SESSION_COOKIE_NAME = "session_token";
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// Author: samir
+// Impact: SESSION_COOKIE_NAME is now exported so server components can read the cookie via next/headers cookies() and call buildAuthContext()
+// Reason: the dashboard route group needs a server-side org-setup gate to prevent the flash of restricted content. That gate runs in a server component, which can't take a Request, so it needs to read the cookie name directly.
+export const SESSION_COOKIE_NAME = "session_token";
+
+// Old Author: Puran
+// New Author: samir
+// Impact: replaced the single 7-day SESSION_MAX_AGE_MS with two durations driven by the
+//         Remember Me checkbox on the login form: 1 day by default, 30 days when checked.
+// Reason: product decision — short-lived sessions for shared workstations, opt-in long-lived
+//         sessions for personal devices. The cookie's Max-Age is already computed dynamically
+//         from `expiresAt` in sessionCookieHeader(), so the only place that needs to know
+//         about the duration is createSession().
+const SESSION_DEFAULT_MAX_AGE_MS = 1 * 24 * 60 * 60 * 1000; // 1 day  — Remember Me OFF
+const SESSION_REMEMBER_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — Remember Me ON
+
+/** Options accepted by createSession(). */
+export interface CreateSessionOptions {
+  /**
+   * When true, the session lives for SESSION_REMEMBER_MAX_AGE_MS (30 days).
+   * When false / unset, it lives for SESSION_DEFAULT_MAX_AGE_MS (1 day).
+   * Defaults to false so callers that forget to pass it get the safer
+   * short-lived session, not an accidental month-long login.
+   */
+  rememberMe?: boolean;
+}
 
 /**
  * Creates a new session row in the database and returns the token + expiry.
  *
+ * The session duration is determined by the `rememberMe` flag:
+ * - rememberMe = true  → 30 days (long-lived, "keep me signed in")
+ * - rememberMe = false → 1 day  (short-lived, default for shared devices)
+ *
  * @param userId - The authenticated user's ID
+ * @param options - Session options, currently `{ rememberMe }`
  * @returns Object containing the raw session token and expiry date
  *
  * @author Puran
  * @created 2026-04-02
  * @module Auth - Session Management
  */
-export async function createSession(userId: string) {
+export async function createSession(
+  userId: string,
+  options: CreateSessionOptions = {},
+) {
   const token = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_MS);
+  const maxAgeMs = options.rememberMe
+    ? SESSION_REMEMBER_MAX_AGE_MS
+    : SESSION_DEFAULT_MAX_AGE_MS;
+  const expiresAt = new Date(Date.now() + maxAgeMs);
 
   await db.session.create({
     data: { userId, token, expiresAt },
@@ -45,19 +80,47 @@ export async function createSession(userId: string) {
  * Returns the session with user data if valid, null if expired or not found.
  * Expired sessions are soft-deleted (deletedAt set) per §5.3.
  *
+ * Also pulls the user's assigned OrganizationRole (with its module A–E flags)
+ * so callers can build a complete AuthContext in a single query — no extra
+ * round-trip on the hot path for every protected route.
+ *
  * @param token - The session token from the cookie
- * @returns Session with user data, or null if invalid/expired
+ * @returns Session with user + organizationRole, or null if invalid/expired
  *
  * @author Puran
  * @created 2026-04-02
  * @module Auth - Session Management
  */
+// Old Author: Puran
+// New Author: Puran
+// Impact: include organizationRole module flags in the session select
+// Reason: dynamic module-based permissions need the flags on the AuthContext
+//         without adding a second DB query to every protected request
 export async function validateSession(token: string) {
   const session = await db.session.findUnique({
     where: { token, deletedAt: null },
     include: {
       user: {
-        select: { id: true, fullName: true, email: true, role: true, isVerified: true },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          isVerified: true,
+          orgId: true,
+          organizationRoleId: true,
+          organizationRole: {
+            select: {
+              id: true,
+              name: true,
+              moduleA: true,
+              moduleB: true,
+              moduleC: true,
+              moduleD: true,
+              moduleE: true,
+            },
+          },
+        },
       },
     },
   });

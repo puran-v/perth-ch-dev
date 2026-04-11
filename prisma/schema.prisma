@@ -19,39 +19,534 @@ enum UserRole {
   DRIVER
 }
 
+// Author: samir
+// Impact: tracks whether Module A setup has been saved as draft or committed
+// Reason: the org-setup UI needs to persist partial progress (draft) and a
+// final validated state (complete) so the Save Draft / Save & Continue
+// buttons can round-trip through the API without losing work
+enum OrgSetupStatus {
+  DRAFT
+  COMPLETE
+}
+
+// Author: Puran
+// Impact: lifecycle state for catalogue products (Module A — Products)
+// Reason: the product editor exposes Active / Maintenance / No Price /
+// Inactive in the status dropdown. Mirroring those values as a Postgres
+// enum keeps the DB the source of truth and lets us index by status for
+// the catalogue list filter without typo risk.
+enum ProductStatus {
+  ACTIVE
+  MAINTENANCE
+  NO_PRICE
+  INACTIVE
+}
+
+/// Product pricing model — drives both the Configuration tab in the
+/// admin form AND (later) the quote builder configurator modal that
+/// the sales team uses to add the product to a quote.
+///
+/// - STANDARD        : single fixed `basePrice`, no configuration
+/// - DIMENSION_BASED : priced by width × length via `pricingConfig`
+/// - SIZE_VARIANT    : fixed list of variants in `product_variants`,
+///                     each with its own price + per-variant qty
+/// - QUANTITY_ADDONS : fixed `basePrice` + selectable add-on groups
+///
+/// Add-on groups (`addonGroups` JSONB) can be attached to ANY product
+/// type — they're not exclusive to QUANTITY_ADDONS. See
+/// `src/server/lib/validation/pricing.ts` for the discriminated
+/// validation factory.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (pricing models)
+enum ProductType {
+  STANDARD
+  DIMENSION_BASED
+  SIZE_VARIANT
+  QUANTITY_ADDONS
+}
+
 model Organization {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   users                 User[]
   emailVerificationOtps EmailVerificationOtp[]
+  orgSetup              OrgSetup?
+  organizationRoles     OrganizationRole[]
+  invitations           Invitation[]
+  // Author: samir
+  // Impact: back-references for the Module A CSV Import models
+  // Reason: every tenant-scoped model needs a relation back to Organization so
+  //         Prisma can enforce the multi-tenant FK and cascade soft semantics
+  customers             Customer[]
+  products              Product[]
+  productVariants       ProductVariant[]
+  productCategories     ProductCategory[]
+  bookings              Booking[]
+  importJobs            ImportJob[]
 
   @@map("organizations")
 }
 
+/// Product — catalogue item rented out by the org (Module A — Products).
+///
+/// Every product is org-scoped (§2.1). SKU is unique per org so two
+/// tenants can both use "SKU-001" without collision. `basePrice` is
+/// stored as a whole-dollar integer for V1 — when we move to per-cent
+/// pricing this becomes `basePriceCents` and the migration is mechanical.
+///
+/// `images` and `tags` are Postgres text[] columns rather than separate
+/// tables because the UI only ever reads/writes the full list as a unit
+/// and there are no joins needed against individual values. If we ever
+/// need search-by-tag we can promote `tags` to its own table without
+/// touching the API surface (the response still emits string[]).
+///
+/// Soft-delete only via `deletedAt` (§5.3) — the catalogue keeps history
+/// so old bookings can still resolve a product name even after the row
+/// is hidden from the picker.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products
+model Product {
+  id              String        @id @default(cuid())
+  orgId           String
+  name            String
+  sku             String
+  // Author: Puran
+  // Impact: legacy free-text category column kept for the dual-write
+  //         rollout phase. Once every consumer reads via categoryId,
+  //         a follow-up migration drops this column.
+  // Reason: shipping the FK alongside the existing string lets us
+  //         backfill, dual-write for one PR cycle, and grep for
+  //         stragglers before the destructive drop.
+  category        String
+  // Author: Puran
+  // Impact: nullable FK pointing at the org's ProductCategory list
+  // Reason: nullable until the backfill migration runs and the form
+  //         starts sending categoryId. After the legacy `category`
+  //         column is dropped in the follow-up PR this becomes
+  //         non-null + the read path stops looking at the string.
+  categoryId      String?
+  subcategory     String?
+  description     String?
+  // Author: Puran
+  // Impact: legacy `configurable` boolean kept during the dual-write
+  //         rollout phase. Once the form fully reads `productType`,
+  //         a follow-up PR drops this column.
+  // Reason: same shipping discipline as the categories migration —
+  //         additive in this PR, destructive drop in the next.
+  configurable    Boolean       @default(false)
+  // Author: Puran
+  // Impact: pricing model flag — single source of truth for which
+  //         pricing engine drives this product
+  // Reason: §2 of the Configurable Product Pricing spec — the row's
+  //         productType is the only place this discriminator lives.
+  //         pricingConfig validation reads it to pick the right
+  //         schema; the form reads it to render the right cards.
+  productType     ProductType   @default(STANDARD)
+  // Author: Puran
+  // Impact: model-specific pricing rules stored as a JSONB blob
+  // Reason: dimension-based products carry rate / min area / min
+  //         price / pricing tiers; standard / size_variant /
+  //         quantity_addons all store null. Validated at the API
+  //         boundary by `pricingConfigSchemaForType(productType)`
+  //         in src/server/lib/validation/pricing.ts so the JSON
+  //         shape can never drift from the row's productType.
+  pricingConfig   Json?
+  // Author: Puran
+  // Impact: optional add-on groups attachable to ANY product type
+  // Reason: §6 of the spec — add-on groups are not exclusive to
+  //         QUANTITY_ADDONS products. Stored as JSONB array and
+  //         validated by addonGroupsSchema. Default empty array
+  //         so consumers can map() without a null check.
+  addonGroups     Json?         @default("[]")
+  status          ProductStatus @default(ACTIVE)
+  quantity        Int           @default(0)
+  basePrice       Int           @default(0)
+  setupMinutes    Int           @default(0)
+  packdownMinutes Int           @default(0)
+
+  // Operational tab — staffing
+  // Author: Puran
+  // Impact: how many people are needed for set-up vs running the product
+  // Reason: scheduling AI uses these to size each warehouse task and the
+  //         on-event crew. Stored as Int (no fractional people) and 0
+  //         is a valid "no extra staff" answer rather than null.
+  staffSetup    Int @default(0)
+  staffOperate  Int @default(0)
+
+  // Operational tab — physical dimensions + weight
+  // Author: Puran
+  // Impact: nullable Floats so a product without measurements doesn't
+  //         show "0 m" in the editor — placeholder shows instead
+  // Reason: Float (Postgres double precision) is the right fit for
+  //         measurements; Decimal would be overkill since dimensions
+  //         don't need exact-cents precision the way money does.
+  lengthM         Float?
+  widthM          Float?
+  heightM         Float?
+  weightKg        Float?
+  truckSpaceUnits Int?
+
+  // Operational tab — handling flags
+  // Author: Puran
+  // Impact: multi-select chips like "Requires Power", "Fragile", plus
+  //         custom user-typed flags — all stored in one text[] column
+  // Reason: same pattern as `tags` and `images`. Storage doesn't care
+  //         which strings are presets and which are custom; the UI is
+  //         the only layer that knows the canonical preset list, so
+  //         changing the preset catalogue is a one-line UI edit and
+  //         needs no migration.
+  handlingFlags String[] @default([])
+
+  // Warehouse tab — physical location
+  // Author: Puran
+  // Impact: zone / bay-shelf / free notes that the Module C voice AI
+  //         reads aloud to guide pickers
+  // Reason: nullable strings — most products won't have a fixed
+  //         location until the warehouse is mapped. Empty input
+  //         saves as null so the picker shows the placeholder.
+  warehouseZone          String?
+  warehouseBayShelf      String?
+  warehouseLocationNotes String?
+
+  // Warehouse tab — built-in post-job task toggles
+  // Author: Puran
+  // Impact: each boolean creates the corresponding warehouse task
+  //         when the product returns from a job (Module C)
+  // Reason: four columns instead of a JSON blob so each rule is
+  //         independently indexable / queryable later (e.g. "show me
+  //         every product that needs charging on return"). Adding a
+  //         5th preset is a 2-line migration; removing one stays
+  //         backward-compatible since it just becomes ignored.
+  requiresCleaning        Boolean @default(false)
+  requiresCharging        Boolean @default(false)
+  requiresConsumableCheck Boolean @default(false)
+  requiresInspection      Boolean @default(false)
+
+  // Warehouse tab — custom post-job rule titles
+  // Author: Puran
+  // Impact: org-specific post-job task names beyond the four presets
+  // Reason: same text[] pattern as `tags`, `handlingFlags`, `images`.
+  //         Each entry is a free-form rule title; the rule is always
+  //         "on" — removing it from the array deletes it. Description
+  //         field intentionally dropped (UI only ever showed the title).
+  customPostJobRules String[] @default([])
+
+  // Notes & Rules tab — long-form free text for three audiences
+  // Author: Puran
+  // Impact: per-audience briefing notes consumed by sales (quoting),
+  //         warehouse (pick lists), and the AI quote reviewer
+  // Reason: Postgres TEXT (unbounded) for each — these are written
+  //         like a hand-off brief, not a structured config. The AI
+  //         consumes `aiRules` as a string when reviewing quotes for
+  //         this product specifically; sales/warehouse notes are
+  //         shown verbatim in their respective UIs.
+  salesNotes     String?
+  warehouseNotes String?
+  aiRules        String?
+
+  images          String[]      @default([])
+  tags            String[]      @default([])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Author: Puran
+  // Impact: optional relation to the org-scoped ProductCategory row
+  // Reason: onDelete: Restrict on the FK is enforced at the API layer
+  //         (DELETE category returns 409 if any product still references
+  //         it). Setting onDelete: SetNull would silently orphan products,
+  //         which is exactly what we don't want — admins should reassign.
+  categoryRef ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // Author: Puran
+  // Impact: SIZE_VARIANT products own their variants in the
+  //         product_variants table — each row has its own price
+  //         + per-variant inventory
+  // Reason: §3 of the spec — for size variants, inventory is tracked
+  //         per-variant, NOT at the parent product level. The variant
+  //         id is what eventually lands on reservation rows when the
+  //         quote builder ships.
+  variants    ProductVariant[]
+
+  @@unique([orgId, sku])
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, productType])
+  @@index([orgId, category])
+  @@index([orgId, categoryId])
+  @@index([orgId, deletedAt])
+  @@map("products")
+}
+
+/// ProductVariant — one row per size/spec variant of a SIZE_VARIANT
+/// product (Module A — Products / Size Variants).
+///
+/// Each variant carries its own pricing AND its own inventory count
+/// — that's the "important distinction" called out in §3 of the
+/// pricing spec. A "Jumping Castle" with Small/Medium/Large variants
+/// has six total physical units (3+2+1), and reservations must
+/// reference a specific variant_id, not the parent product_id.
+///
+/// `priceDay`, `priceHalfday`, `priceOvernight` are RATE variants
+/// for the same physical inventory pool — `quantity` is the single
+/// stock count regardless of which rate the customer picks.
+///
+/// Soft-delete via `deletedAt` (§5.3). The DELETE endpoint will
+/// block when a future reservations table holds active rows for
+/// the variant — same `IN_USE` 409 pattern as categories. For V1
+/// (no reservations table yet) the DELETE is unconditional with
+/// a TODO marker.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (Variants)
+model ProductVariant {
+  id             String    @id @default(cuid())
+  orgId          String
+  productId      String
+  label          String
+  description    String?
+  /// Day rate in whole dollars (consistent with Product.basePrice
+  /// — until the app-wide cents migration lands).
+  priceDay       Int
+  priceHalfday   Int?
+  priceOvernight Int?
+  /// PER-VARIANT inventory count. NOT the parent product's qty.
+  quantity       Int       @default(0)
+  /// Optional SKU extension appended to the parent product SKU
+  /// (e.g. "-SM", "-MED", "-LG"). Plain text — no uniqueness
+  /// constraint across variants in V1.
+  skuSuffix      String?
+  sortOrder      Int       @default(0)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  createdBy      String?
+  updatedBy      String?
+
+  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  /// Two variants on the same product can't share a label —
+  /// "Jumping Castle / Medium" is unique. Soft-deleted variants
+  /// are filtered at query time, not here, so a deleted "Medium"
+  /// can be recreated under the same label.
+  @@unique([productId, label])
+  @@index([orgId])
+  @@index([productId, sortOrder])
+  @@index([orgId, deletedAt])
+  @@map("product_variants")
+}
+
+/// ProductCategory — per-org master list of product categories
+/// (Module A — Products).
+///
+/// Each org owns its own categories so two tenants can both define
+/// "Inflatable" without collision (§2.1). Uniqueness is enforced
+/// case-insensitively via the `slug` column rather than `name` so
+/// "Inflatable" / "inflatable" / "INFLATABLE" can never coexist —
+/// the API normalises `slug = name.toLowerCase().trim()` server-side
+/// before insert.
+///
+/// Soft-delete via `deletedAt` (§5.3). Hard delete is blocked at the
+/// API layer when any active product still references the row — the
+/// admin must reassign first via the categories admin page (when it
+/// lands) or by editing each product.
+///
+/// `sortOrder` exists today for the eventual drag-to-reorder UI but is
+/// not exposed in V1; the API simply orders by sortOrder asc, then
+/// name asc, so newly created categories sit at the end of the list
+/// in alphabetical order until reordering ships.
+///
+/// @author Puran
+/// @created 2026-04-08
+/// @module Module A - Products (Categories)
+model ProductCategory {
+  id        String    @id @default(cuid())
+  orgId     String
+  name      String
+  slug      String
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+  @@index([orgId, sortOrder])
+  @@index([orgId, deletedAt])
+  @@map("product_categories")
+}
+
+// Old Author: samir
+// New Author: samir
+// Impact: 1:1 companion table for Organization that holds Module A setup state
+// Reason: business/warehouse/payment/branding sections are stored as JSON so drafts can
+// hold partial/invalid data while the COMPLETE status guarantees the payload
+// has passed the strict Zod schema on the server. Using JSON keeps drafts
+// simple; the app layer is responsible for re-validating before use.
+//
+// `branding` was added in migration 20260406110000_add_org_setup_branding —
+// it holds logo data URL (placeholder until real object storage), brand
+// colours (primary + accent hex), and email sender identity (from name /
+// from email / reply-to + DNS status stub).
+model OrgSetup {
+  id             String         @id @default(cuid())
+  orgId          String         @unique
+  status         OrgSetupStatus @default(DRAFT)
+  business       Json?
+  warehouse      Json?
+  payment        Json?
+  branding       Json?
+  // Author: samir
+  // Impact: tracks which onboarding steps the user has explicitly completed via Save & Continue
+  // Reason: the stepper's green tick used to be derived by re-running Zod on saved data, which meant Save & Draft of valid data also ticked the step. Per-step completion is now an explicit signal — only Save & Continue mutates this array; drafts never downgrade it.
+  completedSteps Json           @default("[]")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+  @@map("org_setups")
+}
+
 model User {
-  id           String    @id @default(cuid())
-  orgId        String?
-  fullName     String
-  email        String    @unique
-  passwordHash String?
-  role         UserRole  @default(ADMIN)
-  isVerified   Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id                 String    @id @default(cuid())
+  orgId              String?
+  organizationRoleId String?
+  // fullName is the canonical display name kept for backward compat with
+  // existing UI. firstName/lastName/jobTitle are populated at invite-accept
+  // time (or via signup later) and are the source of truth going forward —
+  // when both are present, fullName should equal `${firstName} ${lastName}`.
+  // All three are nullable so legacy users created before this migration
+  // (only fullName populated) keep working with no backfill.
+  fullName           String
+  firstName          String?
+  lastName           String?
+  jobTitle           String?
+  email              String    @unique
+  passwordHash       String?
+  role               UserRole  @default(ADMIN)
+  isVerified         Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   org                   Organization?          @relation(fields: [orgId], references: [id])
+  organizationRole      OrganizationRole?      @relation(fields: [organizationRoleId], references: [id])
   emailVerificationOtps EmailVerificationOtp[]
   sessions              Session[]
   passwordResetTokens   PasswordResetToken[]
   accounts              Account[]
+  invitationsSent       Invitation[]           @relation("InvitedBy")
 
   @@index([orgId])
+  @@index([organizationRoleId])
   @@map("users")
+}
+
+/// OrganizationRole — V1 org-scoped role with module access flags.
+/// Display/metadata only for V1; system RBAC still uses User.role enum.
+/// V2 will wire these modules into guards as effective permissions.
+model OrganizationRole {
+  id          String  @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  sortOrder   Int     @default(0)
+
+  // System roles are created by the platform (currently only the founding
+  // "Admin" role seeded during org-setup completion) and are locked against
+  // rename / module-toggle / delete through API + UI checks. Use isSystem
+  // as the source of truth — never rely on the `name` field alone.
+  // §5.3 — locked rather than immutable so a future migration could convert
+  //        legacy rows or add new system roles without a destructive reset.
+  isSystem Boolean @default(false)
+
+  // V1 module access flags — Scope 1 modules A-E
+  // Future: replace with a permissions JSON column when V2 fine-grained perms land
+  moduleA Boolean @default(false) // Quoting & Booking
+  moduleB Boolean @default(false) // Inventory
+  moduleC Boolean @default(false) // Warehouse
+  moduleD Boolean @default(false) // Finance
+  moduleE Boolean @default(false) // Reports (placeholder)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users       User[]
+  invitations Invitation[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@index([orgId, sortOrder])
+  @@index([orgId, isSystem])
+  @@map("organization_roles")
+}
+
+/// Invitation — org-scoped invite with hashed token + expiry.
+/// Bulk creation supported via batch POST. Soft-delete via revokedAt.
+///
+/// firstName / lastName / jobTitle are captured at invite time so the
+/// invitation email can greet by first name and the new User row can be
+/// pre-populated with the same data on accept (no retyping). All three
+/// are nullable for backward compatibility with invites created before
+/// this column landed.
+model Invitation {
+  id                 String    @id @default(cuid())
+  orgId              String
+  email              String
+  firstName          String?
+  lastName           String?
+  jobTitle           String?
+  organizationRoleId String
+  tokenHash          String    @unique
+  expiresAt          DateTime
+  sentAt             DateTime  @default(now())
+  consumedAt         DateTime?
+  revokedAt          DateTime?
+  personalMessage    String?
+  invitedByUserId    String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org              Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organizationRole OrganizationRole @relation(fields: [organizationRoleId], references: [id])
+  invitedBy        User?            @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+
+  @@index([orgId])
+  @@index([orgId, email])
+  @@index([organizationRoleId])
+  @@index([expiresAt])
+  @@map("invitations")
 }
 
 model Account {
@@ -128,4 +623,164 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Module A — CSV Import models
+// Author: samir
+// Impact: net-new schema for the one-time ERS migration flow — Customers,
+//         Products, Bookings (header-only for V1) + the ImportJob audit row
+// Reason: csv_design.md spec calls for these tables; the import flow is
+//         the first feature touching the customers / products / bookings
+//         tables, so this PR creates them. Bookings line items deferred
+//         to V2 (BookingItem) — the cutover only needs the booking header.
+// ──────────────────────────────────────────────────────────────────────
+
+/// Which CSV import flow a job belongs to. Mirrors src/types/csv-import.ts StepKind.
+enum ImportKind {
+  CUSTOMERS
+  PRODUCTS
+  BOOKINGS
+}
+
+/// Lifecycle of a single ImportJob row.
+/// V1 is fully synchronous, so jobs flip from RUNNING → COMPLETED|FAILED
+/// inside one HTTP request. The enum is here so the schema is ready when
+/// async/BullMQ lands.
+enum ImportStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// Tri-state payment progress carried over from ERS for an imported booking.
+/// We accept "paid" / "partial" / "unpaid" (case-insensitive) on the wire
+/// and normalise into this enum at insert time.
+enum BookingPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+// Author: samir
+// Impact: Customer model — first persisted-data table on the project
+// Reason: CSV import customers flow needs a destination table; schema mirrors
+//         the customer mapping guide in CsvMappingGuideModal.tsx exactly so
+//         FE field names and DB column names round-trip without translation
+model Customer {
+  id              String   @id @default(cuid())
+  orgId           String
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  mobile          String?
+  company         String?
+  addressLine1    String?
+  addressSuburb   String?
+  addressState    String?
+  addressPostcode String?
+  notes           String?
+  // String[] keeps tags inline on the row — junction table is overkill for
+  // V1 and Postgres handles array contains/overlaps efficiently for the
+  // searches we'll need (e.g. "find all VIP customers")
+  tags            String[] @default([])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  // §2.1 idempotency: re-running the same import must NOT duplicate.
+  // Email is the natural key per tenant per the csv_design.md spec.
+  @@unique([orgId, email])
+  @@index([orgId])
+  @@index([orgId, lastName, firstName])
+  @@map("customers")
+}
+
+// Author: samir
+// Impact: Booking model — header row only for V1; line items deferred
+// Reason: cutover only needs the booking header (date, customer, totals,
+//         payment state) tied back to the customer. Line items can be
+//         backfilled in the booking edit UI when the V2 booking module
+//         lands. Header-only also keeps the bookings CSV format simple.
+model Booking {
+  id                  String               @id @default(cuid())
+  orgId               String
+  // ERS booking reference (e.g. "ERS-12345") — UNIQUE per tenant so the
+  // import is idempotent and operators can cross-reference legacy IDs.
+  externalRef         String
+  customerId          String
+  eventDate           DateTime             @db.Date
+  eventStartTime      String? // HH:MM 24h, validated by Zod regex
+  eventEndTime        String? // HH:MM 24h
+  deliveryAddress     String
+  deliverySuburb      String?
+  deliveryState       String?
+  deliveryPostcode    String?
+  contactPhone        String?
+  specialInstructions String?
+  subtotal            Decimal              @db.Decimal(10, 2)
+  depositPaid         Decimal              @default(0) @db.Decimal(10, 2)
+  // balanceDue is computed at insert time (subtotal - depositPaid) so the
+  // value is consistent with the source-of-truth columns even if depositPaid
+  // is later updated through the booking edit UI
+  balanceDue          Decimal              @default(0) @db.Decimal(10, 2)
+  paymentStatus       BookingPaymentStatus @default(UNPAID)
+  notes               String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@unique([orgId, externalRef])
+  @@index([orgId])
+  @@index([orgId, eventDate])
+  @@index([customerId])
+  @@map("bookings")
+}
+
+// Author: samir
+// Impact: ImportJob — audit row capturing what happened on each import run
+// Reason: powers the status pills on the CSV Import page (Done / Pending /
+//         Importing / Failed) and the per-run results report. Errors are
+//         stored as a JSON array of { row, field, code, message } so the
+//         FE can render the per-row error log without an extra table.
+model ImportJob {
+  id            String       @id @default(cuid())
+  orgId         String
+  kind          ImportKind
+  status        ImportStatus
+  filename      String
+  totalRows     Int          @default(0)
+  importedRows  Int          @default(0)
+  skippedRows   Int          @default(0)
+  failedRows    Int          @default(0)
+  errors        Json? // [{ row: number, field?: string, code: string, message: string }]
+  // Top-level rejection reason when status === FAILED before any row was
+  // processed (e.g. wrong file type, missing headers, > 10k rows)
+  failureReason String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdBy   String?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, kind])
+  // Most-recent-first lookup per kind powers GET /import/status — one
+  // round-trip pulls the latest job for each ImportKind in the org
+  @@index([orgId, kind, createdAt(sort: Desc)])
+  @@map("import_jobs")
 }

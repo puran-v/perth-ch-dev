@@ -3,6 +3,58 @@
 > **This document is the single source of truth for every developer and every AI coding agent working on this project.**
 > Read this BEFORE writing any code. If something contradicts this document, this document wins.
 
+
+You MUST strictly follow ALL rules in PROJECT_RULES.md and check as well below rules. This is the single source of truth and overrides everything.
+
+Execution Guidelines:
+1. Fully understand the task before writing code. If unclear → STOP and ask.
+2. Think step-by-step: architecture → database → API → frontend.
+3. Implement only production-ready, scalable, and clean code.
+
+Core Rules (NON-NEGOTIABLE):
+- Multi-tenant: EVERY table and query MUST include orgId (never trust client input, always from session)
+- Booking ID is the central reference across all modules
+- Strict TypeScript (no `any`, full types everywhere)
+- Zod validation REQUIRED for every API input
+- API pattern: Auth → RBAC → orgId → business logic → response
+- Prisma queries MUST always include `where: { orgId }`
+- Proper error handling (standard success/error response format)
+- Soft delete only (no permanent deletes)
+
+Architecture & Code:
+- Follow exact project folder structure and module boundaries
+- Use RESTful API conventions (App Router, route.ts)
+- Add JSDoc for all functions
+- Add comments explaining WHY for complex logic
+- Keep components modular (<200 lines)
+
+Frontend Rules:
+- Mobile-first responsive design (all breakpoints)
+- Use Tailwind design tokens ONLY (no hex, no inline styles)
+- Use typography tokens (no default Tailwind sizes)
+- Use React Query for all server state (no manual fetch/useEffect)
+- Proper loading, error, and empty states
+- Accessibility required (aria, keyboard support)
+
+AI Rules:
+- AI only suggests, NEVER auto-executes
+- Always include explanation ("why")
+- Use module-based AI structure via API routes
+
+Before Final Output (MANDATORY CHECK):
+- All queries scoped by orgId
+- No TypeScript violations
+- Zod validation present
+- API follows required pattern
+- UI follows design system
+- Fully responsive
+- No rule violations
+
+If ANY rule is violated → FIX before returning.
+
+Output ONLY clean, final, production-ready code.
+
+
 ---
 
 First read the AGENTS.md from the project files and go according to it so our project can no be break.
@@ -28,6 +80,9 @@ Scope 1 — Operations Platform -- we will focus on this module right now : http
   3. Reference the Google Docs — project requirements + Scope 1 specs for context                                                      
   4. Use gitconfig for all author comments (// Author: — name) and Co-Authored-By                                                       
   5. Verify alignment with all applicable rules before committing  
+  6. while create the pr make sure this kind of of things never mention : Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> and also generate by ai or claude nothing will be there
+
+
 
 ## 1.1 Make sure to use utils and services
 - Ensure all reusable or common logic is abstracted into shared functions, components, or services. Avoid hardcoding or duplicating logic across the codebase. Examples include utilities like getToken, getCurrentUser, and centralized API services (e.g., Axios-based ApiService). Follow the defined project structure and standard full-stack best practices.
@@ -855,6 +910,101 @@ className="bg-white border border-gray-200 shadow-sm"
 ```tsx
 className="border border-gray-300 focus:border-primary"
 ```
+
+#### Tables
+
+**Canonical reference:** the Bundles & Packages table at `src/app/(dashboard)/dashboard/(org-required)/bundles/page.tsx`. Every data table in the project MUST match this exact pattern. Supporting references: `src/components/team/UsersTab.tsx`, `src/components/team/PendingTab.tsx` (grid-based), and the shared `src/components/ui/Table.tsx`.
+
+**TL;DR — headers (`<th>`) are `font-medium text-black`. Body cells (`<td>` and every `<tr>` row) are `font-normal text-slate-600`. No `font-semibold` or `font-bold` anywhere inside a data table.**
+
+##### Header — `<thead>` + `<tr>` + `<th>`
+
+Solid black, `font-medium`, uppercase. Every `<th>` MUST carry `font-medium text-black` explicitly so the weight cannot be overridden by a stray parent class or the browser's UA `th` style:
+
+```tsx
+<thead className="bg-slate-50/60 text-left text-xs font-medium uppercase tracking-wide text-black">
+  <tr className="font-medium">
+    <th className="whitespace-nowrap font-medium text-black px-6 py-3">Bundle name</th>
+    <th className="whitespace-nowrap font-medium text-black px-6 py-3">Items included</th>
+  </tr>
+</thead>
+```
+
+| Element | Required classes |
+| --- | --- |
+| `<thead>` | `bg-slate-50/60 text-left text-xs font-medium uppercase tracking-wide text-black` — `bg-slate-50/60` MAY be swapped for `bg-slate-50` if the card chrome demands it; everything else is fixed |
+| `<tr>` inside `<thead>` | `font-medium` (matches the header weight, keeps the cascade explicit) |
+| every `<th>` | `whitespace-nowrap font-medium text-black px-6 py-3` — `font-medium` AND `text-black` MUST be repeated on every `<th>`; do NOT rely on `<thead>` inheritance |
+
+**Banned on `<th>` and on grid-based header rows:**
+
+- `font-bold`, `font-semibold` — both too heavy, banned on headers
+- `font-normal` — too light for a header, banned
+- `text-slate-500/600/700/900`, `text-gray-*` — the only allowed header color is `text-black`
+
+##### Body rows — `<tr>` + `<td>`
+
+Every `<tr>` inside `<tbody>` and every raw `<td>` text MUST be `font-normal`. The default color is `text-slate-600`; an emphasized numeric/money column MAY sit on `text-slate-900` for contrast (still no weight class).
+
+```tsx
+// Primary identifier column (bundle name, product name, member name, role name, etc.)
+<tr className="font-normal hover:bg-slate-50/40">
+  <td className="px-6 py-4">
+    <p className="text-sm font-normal text-slate-600">{b.name}</p>
+    <p className="text-xs text-slate-400">{b.itemCount} items</p>
+  </td>
+
+  {/* Emphasized numeric / money column — darker color, still no weight */}
+  <td className="px-6 py-4 text-sm text-slate-900">
+    ${b.bundlePrice.toLocaleString()}
+  </td>
+
+  {/* Default data cell (category, email, date, description, etc.) */}
+  <td className="px-6 py-4 text-sm text-slate-600">{b.itemsIncluded}</td>
+</tr>
+```
+
+| Element | Required classes |
+| --- | --- |
+| `<tr>` inside `<tbody>` | `font-normal` (MAY also carry `hover:*` utilities) |
+| primary identifier `<td>` | `text-sm font-normal text-slate-600` on the name `<p>`; sublines use `text-xs text-slate-400` |
+| emphasized money/number `<td>` | `text-sm text-slate-900` (no weight class) |
+| default data `<td>` | `text-sm text-slate-600` (no weight class) |
+
+**Banned on body-cell text (the `<td>`'s own text content):**
+
+- `font-semibold`, `font-bold` — always banned on raw cell text
+- `font-medium` on raw `<td>` text — banned; `font-medium` belongs to headers only
+- `text-gray-*` — stick to `text-slate-*` for consistency with the rest of the UI
+
+The ban applies to **raw text in the cell** (`<td>...</td>` or `<td><p>...</p></td>`). Nested UI components — pills, badges, status indicators, icon buttons, edit/revoke action buttons — follow their own component styling and may carry any `font-*` weight their design specifies. Example: `SavingsPill` and `TypePill` inside a bundles-table `<td>` are fine as `text-xs font-medium`, because the weight belongs to the pill, not the cell.
+
+##### Responsive
+
+Data tables MUST stay `<table>` elements at every breakpoint — do NOT swap to stacked cards on mobile. Wrap the table in `overflow-x-auto` and give the `<table>` itself a `min-w-[Npx]` so small viewports scroll horizontally. See `bundles/page.tsx` for the canonical wrapper.
+
+##### Reusable component
+
+The shared `<Table />` in `src/components/ui/Table.tsx` already applies the canonical header rule. Prefer it over bespoke `<table>` markup when the column model fits.
+
+##### Exemptions
+
+- **Code/example displays** — the CSV sample preview in `CsvMappingGuideModal` (monospace blue headers that represent literal CSV columns) is NOT a data table and is exempt.
+- **Email-layout tables** — `role="presentation"` tables used as email HTML scaffolding (e.g. `src/server/lib/email/emailTemplate.ts`) are NOT data tables and are exempt.
+- **Grid-based "fake tables"** — e.g. `PendingTab`'s `md:grid` header row. Still bound by the header rules (`font-medium text-black`) and the body rules (primary identifier is `text-sm font-normal text-slate-600`).
+
+##### Compliance checklist (tick before merging a new or refactored table)
+
+- [ ] `<thead>` has `text-xs font-medium uppercase tracking-wide text-black` (background may vary)
+- [ ] `<tr>` inside `<thead>` has `font-medium`
+- [ ] Every `<th>` repeats `font-medium text-black` explicitly
+- [ ] `<tr>` inside `<tbody>` has `font-normal`
+- [ ] Primary identifier `<td>` uses `text-sm font-normal text-slate-600`
+- [ ] Default `<td>` uses `text-sm text-slate-600` (no weight class)
+- [ ] Emphasized money/number `<td>` MAY use `text-sm text-slate-900` (darker, still no weight)
+- [ ] No `font-semibold` or `font-bold` anywhere inside the `<thead>` or `<tbody>` (raw text)
+- [ ] No `font-medium` on raw `<td>` text — only on `<th>`
+- [ ] Table stays a `<table>` at every breakpoint (`overflow-x-auto` + `min-w-*`, no card fallback)
 
 ---
 

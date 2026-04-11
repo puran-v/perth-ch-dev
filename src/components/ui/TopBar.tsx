@@ -60,27 +60,30 @@ export function TopBar({
         </nav>
       )}
 
+      {/* Author: samir */}
+      {/* Impact: title row wraps on mobile; search field is full-width on small screens */}
+      {/* Reason: fixed layout broke on 320px with search and action buttons */}
       {/* Title row */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-lg font-semibold text-slate-900">{title}</h1>
           {subtitle && (
-            <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
+            <p className="mt-0.5 text-xs sm:text-sm text-slate-500">{subtitle}</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {onSearch && (
             <SearchInput
               placeholder={searchPlaceholder}
               onSearch={onSearch}
-              className="w-64"
+              className="w-full sm:w-64"
             />
           )}
           {actions}
           {/* Only show bell here if date bar is NOT shown (avoid duplicate) */}
           {!showDateBar && notifications !== undefined && (
             <button
-              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Notifications"
             >
               <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,7 +4,20 @@
       "Read(//Users/mac/Desktop/samir\\\\ shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/app/**)",
       "Bash(mkdir -p \"/Users/mac/Desktop/samir shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/lib/constants\")",
       "Bash(mkdir -p \"/Users/mac/Desktop/samir shaikh/project/perth_bouncy_castle_hire/perth-ch-dev/src/components/admin\")",
-      "Read(//Users/mac/Desktop/**)"
+      "Read(//Users/mac/Desktop/**)",
+      "Bash(git check-ignore:*)",
+      "Bash(git config:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(gh auth:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git commit:*)",
+      "Bash(npx eslint:*)",
+      "Bash(/usr/local/bin/npx tsc:*)",
+      "Read(//opt/homebrew/bin/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/mac/Desktop/Puran/PerthCH/Dev/perth-ch-dev/perth-ch-dev/src/app/(dashboard)/dashboard/products/[id]"
     ]
   }
 }

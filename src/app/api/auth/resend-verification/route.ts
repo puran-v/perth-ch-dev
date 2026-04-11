@@ -92,21 +92,21 @@ export async function POST(req: Request): Promise<Response> {
       return neutralSuccess();
     }
 
-    // Step 4: Issue new OTP (invalidates existing) and send email
-    const otpResult = await issueOtp(user.id, user.email, {
-      invalidateExisting: true,
-    });
-
-    if (!otpResult.emailSent) {
-      logger.warn("Resend email send failed", { ...ctx, userId: user.id });
-      return error(
-        "EMAIL_SEND_FAILED",
-        "Failed to send verification email. Please try again.",
-        502
-      );
-    }
-
-    logger.info("Resend OTP sent", { ...ctx, userId: user.id });
+    // Author: samir
+    // Impact: fire OTP email asynchronously so response returns immediately
+    // Reason: SMTP send was blocking response for 500ms-3s; response is neutral regardless
+    // Step 4: Issue new OTP (invalidates existing) and send email asynchronously
+    issueOtp(user.id, user.email, { invalidateExisting: true })
+      .then((otpResult) => {
+        if (!otpResult.emailSent) {
+          logger.warn("Resend email send failed", { ...ctx, userId: user.id });
+        } else {
+          logger.info("Resend OTP sent", { ...ctx, userId: user.id });
+        }
+      })
+      .catch((otpErr) => {
+        logger.error("Resend OTP failed", { ...ctx, userId: user.id }, otpErr);
+      });
 
     return neutralSuccess();
   } catch (err) {

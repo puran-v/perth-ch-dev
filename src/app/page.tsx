@@ -36,7 +36,7 @@ export default function Home() {
           isAuthenticated ? (
             <button
               onClick={logout}
-              className="inline-flex items-center justify-center h-13 px-10 rounded-full bg-[#1a2f6e] text-white text-base font-medium hover:bg-[#15255a] active:bg-[#111e4a] transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center h-13 px-10 rounded-full bg-[#1a2f6e] text-white text-base font-medium hover:bg-[#15255a] active:bg-[#111e4a] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2f6e]/40"
               aria-label="Log Out"
             >
               Log Out

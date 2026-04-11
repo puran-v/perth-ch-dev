@@ -63,6 +63,9 @@ export const resendVerificationSchema = z.object({
     .max(254, "Email must be 254 characters or less"),
 });
 
+// Author: samir
+// Impact: loginSchema now accepts an optional `rememberMe` boolean from the form
+// Reason: drives the session-cookie lifetime in createSession() — checked = 30-day session, unchecked = 1-day session. Optional + default(false) keeps the schema backwards-compatible with any caller that hasn't been updated yet.
 export const loginSchema = z.object({
   email: z
     .string()
@@ -74,6 +77,7 @@ export const loginSchema = z.object({
     .string()
     .min(1, "Password is required")
     .max(128, "Password must be 128 characters or less"),
+  rememberMe: z.boolean().optional().default(false),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -99,9 +103,34 @@ export const resetPasswordSchema = z.object({
     .regex(/\d/, "Password must contain at least one digit"),
 });
 
+// Author: Puran
+// Impact: validation for POST /api/auth/accept-invitation
+// Reason: mirror signup rules so invited users meet the same password standard
+
+/** Validates accept-invitation body: token + full name + password (signup-strength) */
+export const acceptInvitationSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(1, "Token is required"),
+  fullName: z
+    .string()
+    .trim()
+    .min(1, "Full name is required")
+    .max(120, "Full name must be 120 characters or less"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be 128 characters or less")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/\d/, "Password must contain at least one digit"),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;

@@ -8,8 +8,8 @@ import { logger } from "@/server/lib/logger";
 
 // Old Author: jay
 // New Author: samir
-// Impact: replaced raw NextResponse.json with success()/error() helpers, added JSDoc
-// Reason: align with PROJECT_RULES.md §4.5 and §6.3 standard response format
+// Impact: fire OTP email asynchronously so response returns immediately after user creation
+// Reason: SMTP handshake was blocking response for 1s-3s; user redirects to verify page anyway
 
 const ROUTE = "/api/auth/signup";
 
@@ -17,14 +17,14 @@ const ROUTE = "/api/auth/signup";
  * POST /api/auth/signup
  *
  * Creates a new user account with ADMIN role, hashes the password,
- * and issues an OTP email for email verification.
+ * and fires an OTP email for email verification asynchronously.
  *
- * Flow: Rate limit → Validate input → Check duplicate → Create user → Send OTP
+ * Flow: Rate limit → Validate input → Check duplicate + hash in parallel → Create user → Fire OTP (non-blocking) → Respond
  *
  * @param req - The incoming request with { fullName, email, password }
- * @returns Created user data with emailSent flag (201) or error response
+ * @returns Created user data (201) or error response
  *
- * @author jay
+ * @author samir
  * @created 2026-04-01
  * @module Auth - Signup
  */
@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     // Step 1: Rate limiting — 5 attempts per hour per IP
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const { success: allowed, reset } = await signupLimiter.limit(ip);
+    const { success: allowed } = await signupLimiter.limit(ip);
 
     if (!allowed) {
       logger.warn("Signup rate limited", { ...ctx, ip });
@@ -93,12 +93,18 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
 
-    // Step 6: Issue OTP and send verification email
-    const otpResult = await issueOtp(user.id, user.email);
+    // Step 6: Fire OTP email asynchronously — don't block the response on SMTP
+    // The user is redirected to the verify page regardless; if the email fails
+    // they can use the "Resend OTP" button on the verify screen
+    issueOtp(user.id, user.email).then((otpResult) => {
+      logger.info("Signup OTP sent", { ...ctx, userId: user.id, emailSent: otpResult.emailSent });
+    }).catch((otpErr) => {
+      logger.error("Signup OTP failed", { ...ctx, userId: user.id }, otpErr);
+    });
 
-    logger.info("Signup completed", { ...ctx, userId: user.id, emailSent: otpResult.emailSent });
+    logger.info("Signup completed", { ...ctx, userId: user.id });
 
-    return success({ ...user, emailSent: otpResult.emailSent }, 201);
+    return success({ ...user, emailSent: true }, 201);
   } catch (err) {
     logger.error("Signup failed", ctx, err);
     return error("INTERNAL_ERROR", "Something went wrong while creating your account. Please try again.", 500);

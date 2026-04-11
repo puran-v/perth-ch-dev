@@ -1,3 +1,7 @@
+// Author: samir
+// Impact: added mobile responsive drawer with overlay, hamburger toggle support
+// Reason: sidebar was fixed 280px with no mobile support; now collapses into a slide-out drawer on small screens
+
 "use client";
 
 import React from "react";
@@ -22,10 +26,25 @@ import {
 
 type BadgeType = "notification" | "status";
 
+/**
+ * Module tag for feature-area nav items. Items without a `module` field
+ * are always visible (Setup pages, profile, etc). Items with a module
+ * are filtered out by ModuleAccess when the user's role doesn't allow
+ * that module — ADMIN users see everything because their module flags
+ * are all true in the session context.
+ *
+ * @author Puran
+ * @created 2026-04-06
+ * @module Sidebar
+ */
+export type NavItemModule = "A" | "B" | "C" | "D" | "E";
+
 interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** Optional module tag — item is hidden unless the user has this module enabled */
+  module?: NavItemModule;
   badge?: {
     type: BadgeType;
     value: string | number;
@@ -35,6 +54,21 @@ interface NavItem {
 interface NavSection {
   heading: string;
   items: NavItem[];
+  /**
+   * If true, the whole section is only rendered for ADMIN users.
+   * Used for the Setup group (Org Setup, Roles, Team & Users, Branding)
+   * since org-level management is an ADMIN-only responsibility.
+   */
+  requiresAdmin?: boolean;
+}
+
+/** Per-module access flags — passed in from the AdminSidebarWrapper via /api/auth/me */
+export interface SidebarModuleAccess {
+  A: boolean;
+  B: boolean;
+  C: boolean;
+  D: boolean;
+  E: boolean;
 }
 
 interface ComingSoonModule {
@@ -60,6 +94,53 @@ interface AdminSidebarProps {
   user: UserInfo;
   navSections: NavSection[];
   comingSoon: ComingSoonModule[];
+  /** Whether the logged-in user is an ADMIN — drives section-level filtering */
+  isAdmin: boolean;
+  /** Per-module access flags from /api/auth/me — drives item-level filtering */
+  modules: SidebarModuleAccess;
+  /**
+   * True while /api/auth/me is still resolving. When true, the nav area
+   * renders a skeleton instead of the "No access yet" empty state so we
+   * don't briefly accuse the user of having no access on every reload.
+   */
+  isLoading?: boolean;
+  /**
+   * When true, every nav item except the Org Setup link renders in a
+   * locked, non-clickable state. Used for orphan admins (signed up but
+   * no org created yet) so the sidebar mirrors the backend gate: nothing
+   * else is reachable until they complete Org Info.
+   */
+  lockMode?: boolean;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+/**
+ * Single source of truth for the "first thing the user must do" link.
+ * Kept here so the lock-mode logic and the default nav config can't drift.
+ *
+ * @author Puran
+ * @created 2026-04-07
+ * @module Sidebar
+ */
+const ORG_SETUP_HREF = "/dashboard/org-setup";
+
+function LockBadgeIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
 }
 
 // --- Sub-components ---
@@ -80,7 +161,7 @@ function SidebarLogo() {
 
 function TenantSwitcher({ tenant }: { tenant: TenantInfo }) {
   return (
-    <button className="mx-4 mt-4 mb-2 flex w-[calc(100%-2rem)] items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/15">
+    <button className="mx-4 mt-4 mb-2 flex w-[calc(100%-2rem)] items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/15 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30">
       <div className="flex items-center gap-3">
         <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
         <div>
@@ -119,10 +200,34 @@ function NavBadge({ badge, isActive }: { badge: NavItem["badge"]; isActive: bool
 function SidebarNavItem({
   item,
   isActive,
+  locked = false,
 }: {
   item: NavItem;
   isActive: boolean;
+  locked?: boolean;
 }) {
+  // Author: Puran
+  // Impact: locked items render as a non-interactive div with a lock badge
+  //         instead of a Link, so orphan users can't navigate past Org Setup
+  // Reason: backend rejects every tenant-scoped query without orgId — the
+  //         sidebar must mirror that gate so users see *why* the rest is
+  //         off-limits instead of clicking dead links and getting errors
+  if (locked) {
+    return (
+      <div
+        aria-disabled="true"
+        title="Complete the Org Info step to unlock this section"
+        className="group flex items-center gap-3 rounded-[8px] px-3 py-2.5 font-inter text-[12px] font-bold leading-[170%] tracking-[0.2px] align-middle text-white/30 cursor-not-allowed select-none"
+      >
+        <item.icon className="w-5 h-5 shrink-0 text-white/25" />
+        <span className="text-white/40">{item.label}</span>
+        <span className="ml-auto flex items-center justify-center text-white/40">
+          <LockBadgeIcon />
+        </span>
+      </div>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -148,9 +253,12 @@ function SidebarNavItem({
 function SidebarNavSection({
   section,
   pathname,
+  lockMode = false,
 }: {
   section: NavSection;
   pathname: string;
+  /** When true, every item except the Org Setup link renders locked */
+  lockMode?: boolean;
 }) {
   return (
     <div className="mt-5">
@@ -163,6 +271,7 @@ function SidebarNavSection({
             key={item.href}
             item={item}
             isActive={pathname === item.href}
+            locked={lockMode && item.href !== ORG_SETUP_HREF}
           />
         ))}
       </nav>
@@ -200,7 +309,7 @@ function UserProfile({ user }: { user: UserInfo }) {
       {user.onLogout && (
         <button
           onClick={user.onLogout}
-          className="shrink-0 p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="shrink-0 p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           aria-label="Log out"
           title="Log out"
         >
@@ -220,23 +329,136 @@ export default function AdminSidebar({
   user,
   navSections,
   comingSoon,
+  isAdmin,
+  modules,
+  isLoading = false,
+  lockMode = false,
+  mobileOpen = false,
+  onMobileClose,
 }: AdminSidebarProps) {
   const pathname = usePathname();
 
-  return (
+  // Author: Puran
+  // Impact: two-pass filter — drop admin-only sections for non-admins, then
+  //         drop module-tagged items the user lacks access to, then drop any
+  //         section that ends up empty (so non-admins don't see an orphaned
+  //         "Setup" header with nothing under it)
+  // Reason: sidebar must mirror the backend guards — users only see what they
+  //         can actually reach, no dead links, no misleading entries
+  //
+  // Lock mode override: orphan admins (signed up, no org yet) have all module
+  // flags false because they have no organizationRoleId. Without this branch
+  // the module-tagged sections would get filtered out entirely and the user
+  // would see *only* the Setup section. We want them to see the full sidebar
+  // shape — locked — so they understand exactly what completing Org Info will
+  // unlock. We still respect the requiresAdmin flag (Setup section is admin-
+  // only); orphan non-admins shouldn't exist in practice, but if they did
+  // they'd just see the empty state.
+  const visibleSections = lockMode
+    ? navSections.filter((section) => !section.requiresAdmin || isAdmin)
+    : navSections
+        .filter((section) => !section.requiresAdmin || isAdmin)
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) => !item.module || modules[item.module]
+          ),
+        }))
+        .filter((section) => section.items.length > 0);
+
+  const sidebarContent = (
     <aside className="flex h-screen w-[280px] shrink-0 flex-col bg-[#042E93] overflow-hidden">
+      {/* Mobile close button */}
+      <div className="lg:hidden flex justify-end px-4 pt-4">
+        <button
+          onClick={onMobileClose}
+          className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          aria-label="Close sidebar"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
       <SidebarLogo />
       <TenantSwitcher tenant={tenant} />
 
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 sidebar-scrollbar">
-        {navSections.map((section) => (
-          <SidebarNavSection
-            key={section.heading}
-            section={section}
-            pathname={pathname}
-          />
-        ))}
+        {/* Author: Puran
+            Impact: skeleton placeholder while /api/auth/me is in flight
+            Reason: on hard reload the wrapper passes empty modules until the
+                    user query resolves, which used to flash "No access yet"
+                    at every user — show a loading state instead so the empty
+                    state only appears when access is genuinely missing */}
+        {isLoading ? (
+          <div className="mt-6 space-y-4" aria-busy="true" aria-label="Loading navigation">
+            <div className="h-3 w-20 rounded bg-white/10 animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+            </div>
+            <div className="h-3 w-24 rounded bg-white/10 animate-pulse mt-6" />
+            <div className="space-y-2">
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+            </div>
+          </div>
+        ) : lockMode ? (
+          <>
+            {/* Author: Puran
+                Impact: explainer banner sits above the locked nav so users
+                        understand the lock icons aren't a permission bug
+                Reason: a sidebar full of disabled items with no context looks
+                        broken — the banner ties the lock state back to the
+                        single action that unlocks everything */}
+            <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white">
+                  <LockBadgeIcon className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    Finish Org Info to unlock
+                  </p>
+                  <p className="mt-1 text-xs text-white/60 leading-relaxed">
+                    Complete the Org Info step to create your organization.
+                    Everything else opens up after that.
+                  </p>
+                </div>
+              </div>
+            </div>
+            {visibleSections.map((section) => (
+              <SidebarNavSection
+                key={section.heading}
+                section={section}
+                pathname={pathname}
+                lockMode={lockMode}
+              />
+            ))}
+          </>
+        ) : visibleSections.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-5 text-center">
+            <p className="text-sm font-semibold text-white">No access yet</p>
+            <p className="mt-1 text-xs text-white/60 leading-relaxed">
+              Your role hasn&rsquo;t been granted access to any modules. Ask
+              an admin to update your role.
+            </p>
+          </div>
+        ) : (
+          visibleSections.map((section) => (
+            <SidebarNavSection
+              key={section.heading}
+              section={section}
+              pathname={pathname}
+              lockMode={lockMode}
+            />
+          ))
+        )}
 
         {/* Coming Soon modules */}
         {comingSoon.length > 0 && (
@@ -257,6 +479,29 @@ export default function AdminSidebar({
       <UserProfile user={user} />
     </aside>
   );
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible */}
+      <div className="hidden lg:block">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile sidebar — slide-out drawer with overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <div className="relative z-50 animate-slide-in-left">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 // --- Default Configuration ---
@@ -264,6 +509,13 @@ export default function AdminSidebar({
 export const defaultNavSections: NavSection[] = [
   {
     heading: "Setup",
+    // Author: Puran
+    // Impact: Setup section is now ADMIN-only
+    // Reason: org-level management (create org, invite users, manage roles,
+    //         branding) is the org owner's job — staff users should never see
+    //         these entries even if they somehow navigate to the URLs the
+    //         backend guards will reject them with FORBIDDEN
+    requiresAdmin: true,
     items: [
       {
         label: "Org Setup",
@@ -271,11 +523,18 @@ export const defaultNavSections: NavSection[] = [
         icon: OrgSetupIcon,
         badge: { type: "status", value: "Incomplete" },
       },
+      // Author: Puran
+      // Impact: surfaced Roles as a top-level sidebar entry (above Team & Users)
+      // Reason: roles are created before inviting — easier discovery as its own link
+      {
+        label: "Roles",
+        href: "/dashboard/team/roles",
+        icon: TeamUsersIcon,
+      },
       {
         label: "Team & Users",
         href: "/dashboard/team",
         icon: TeamUsersIcon,
-        badge: { type: "notification", value: 2 },
       },
       {
         label: "Branding",
@@ -291,27 +550,32 @@ export const defaultNavSections: NavSection[] = [
         label: "Products",
         href: "/dashboard/products",
         icon: ProductsIcon,
+        module: "A",
       },
       {
         label: "Bundles & Packages",
         href: "/dashboard/bundles",
         icon: BundlesIcon,
+        module: "A",
       },
       {
         label: "Quote Templates",
         href: "/dashboard/quote-templates",
         icon: QuoteTemplatesIcon,
+        module: "A",
       },
       {
         label: "Pricing & Rules",
         href: "/dashboard/pricing",
         icon: PricingRulesIcon,
+        module: "A",
         badge: { type: "status", value: "Set Up" },
       },
       {
         label: "CSV Import",
         href: "/dashboard/csv-import",
         icon: CsvImportIcon,
+        module: "A",
       },
     ],
   },
