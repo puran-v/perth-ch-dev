@@ -251,25 +251,25 @@ function ProductsCatalogue() {
             <div className="hidden xl:block">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px]">
-                  <thead className="bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="whitespace-nowrap px-6 py-3">Name</th>
-                      <th className="whitespace-nowrap px-6 py-3">Category</th>
-                      <th className="whitespace-nowrap px-6 py-3">Qty</th>
-                      <th className="whitespace-nowrap px-6 py-3">Base price</th>
-                      <th className="whitespace-nowrap px-6 py-3">Setup</th>
-                      <th className="whitespace-nowrap px-6 py-3">Packdown</th>
-                      <th className="whitespace-nowrap px-6 py-3">Status</th>
-                      <th className="whitespace-nowrap px-6 py-3 text-right">
+                  <thead className="bg-slate-50/60 text-left text-xs font-medium uppercase tracking-wide text-black">
+                    <tr className="font-medium">
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Name</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Category</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Qty</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Base price</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Setup</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Packdown</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3">Status</th>
+                      <th className="whitespace-nowrap font-medium text-black px-6 py-3 text-right">
                         <span className="sr-only">Actions</span>
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {products.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/40">
+                      <tr key={p.id} className="font-normal hover:bg-slate-50/40">
                         <td className="px-6 py-4">
-                          <p className="text-sm font-semibold text-slate-900">
+                          <p className="text-sm font-normal text-slate-600">
                             {p.name}
                           </p>
                           <p className="text-xs text-slate-400">{p.sku}</p>
@@ -328,7 +328,7 @@ function ProductsCatalogue() {
                 <div key={p.id} className="flex flex-col gap-3 px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">
+                      <p className="truncate text-sm font-normal text-slate-600">
                         {p.name}
                       </p>
                       <p className="text-xs text-slate-400">{p.sku}</p>
@@ -383,11 +383,11 @@ function ProductsCatalogue() {
       {/*         setup screens so the flow feels consistent. */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pb-6 sm:pb-8">
         <Button variant="outline" size="lg" onClick={handleSave}>
-          Save
+          Save Draft
         </Button>
         <Button variant="primary" size="lg" onClick={handleNext}>
           <span className="flex items-center justify-center gap-2">
-            Next: Bundles
+            Save & Continue
             <svg
               width="16"
               height="16"

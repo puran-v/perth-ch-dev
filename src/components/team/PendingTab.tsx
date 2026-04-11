@@ -226,7 +226,7 @@ export function PendingTab() {
             themselves) but keeps an sr-only "Actions" string so
             screen readers still announce the column. */}
         <div
-          className={`hidden md:grid ${PENDING_GRID_COLS} items-center gap-4 border-b border-slate-100 bg-white px-6 py-3 text-sm font-semibold text-slate-900`}
+          className={`hidden md:grid ${PENDING_GRID_COLS} items-center gap-4 border-b border-slate-100 bg-white px-6 py-3 text-sm font-medium text-black`}
         >
           <div>Name</div>
           <div>Email</div>

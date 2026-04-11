@@ -226,7 +226,7 @@ export default function TeamPage() {
           onClick={handleSaveDraft}
           disabled={isLoadingCounts}
         >
-          Save & Draft
+          Save Draft
         </Button>
         <Button
           variant="primary"
