@@ -8,6 +8,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   icon?: React.ReactNode;
   rightElement?: React.ReactNode; // dev (jay): slot for toggle buttons (e.g. show/hide password)
+  /** Merged into the inner input element (e.g. text-base for table rows). */
+  inputClassName?: string;
 }
 
 export default function Input({
@@ -15,6 +17,7 @@ export default function Input({
   error,
   icon,
   rightElement,
+  inputClassName = "",
   className = "",
   id,
   ...props
@@ -52,7 +55,12 @@ export default function Input({
         <input
           id={inputId}
           // dev (jay): min-w-0 prevents flex overflow on small screens
-          className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 outline-none min-w-0"
+          className={[
+            "flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 outline-none min-w-0",
+            inputClassName,
+          ]
+            .filter(Boolean)
+            .join(" ")}
           {...props}
         />
         {rightElement && (

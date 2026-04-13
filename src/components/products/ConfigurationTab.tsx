@@ -194,6 +194,14 @@ export interface ConfigurationTabProps {
     patch: Partial<AddonOption>
   ) => void;
   onRemoveAddonOption: (groupId: string, optionId: string) => void;
+
+  // ── Product-level base price (QUANTITY_ADDONS) ───────────────────
+  productBasePrice: string;
+  onChangeProductBasePrice: (v: string) => void;
+
+  // ── Configuration notes ─────────────────────────────────────────
+  configNotes: string;
+  onChangeConfigNotes: (v: string) => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -254,6 +262,10 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
     onAddAddonOption,
     onChangeAddonOption,
     onRemoveAddonOption,
+    productBasePrice,
+    onChangeProductBasePrice,
+    configNotes,
+    onChangeConfigNotes,
   } = props;
 
   return (
@@ -606,6 +618,40 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
         </Card>
       )}
 
+      {/* ── Base price card (QUANTITY_ADDONS only) ───────────────────── */}
+      {/* Author: Puran */}
+      {/* Impact: fixed product-level price shown before add-ons */}
+      {/* Reason: spec §5 model 3 — "The product has a base price. */}
+      {/*         On top of that, the admin configures add-on groups." */}
+      {/*         This is the base price the quote builder uses as */}
+      {/*         line item 1; each selected add-on stacks on top. */}
+      {productType === "QUANTITY_ADDONS" && (
+        <Card padding="md">
+          <p className="text-sm font-semibold text-slate-900">Base price</p>
+          <div className="mt-3">
+            <InfoBanner text="The fixed price for this product before any add-ons are applied. Add-on selections generate additional line items on the quote." />
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+              <Input
+                label="Base price ($)"
+                value={productBasePrice ? `$${productBasePrice}` : ""}
+                onChange={(e) =>
+                  onChangeProductBasePrice(
+                    e.target.value.replace(/[^0-9]/g, "")
+                  )
+                }
+                placeholder="$ 0"
+                inputMode="numeric"
+              />
+              <p className="mt-1.5 text-xs text-slate-500">
+                Whole-dollar amount — the starting price on the quote
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* ── Add-on groups card ───────────────────────────────────────── */}
       <Card padding="md">
         <p className="text-sm font-semibold text-slate-900">Add-on groups</p>
@@ -641,6 +687,29 @@ export function ConfigurationTab(props: ConfigurationTabProps) {
           <PlusIcon />
           Add add-on group
         </button>
+      </Card>
+
+      {/* ── Configuration notes card ────────────────────────────────── */}
+      {/* Author: Puran */}
+      {/* Impact: free-text notes the admin writes for the sales team, */}
+      {/*         shown inside the quote builder configurator modal */}
+      {/* Reason: spec §8 step 2 — the modal is built from */}
+      {/*         pricingConfig + addonGroups + these notes */}
+      <Card padding="md">
+        <p className="text-sm font-semibold text-slate-900">
+          Configuration notes
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Notes shown to sales team inside the configurator
+        </p>
+        <textarea
+          value={configNotes}
+          onChange={(e) => onChangeConfigNotes(e.target.value)}
+          rows={4}
+          maxLength={2000}
+          placeholder="e.g. Bays are 3m wide — multiply selected width by number of bays for sidewall quantities."
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[#1a2f6e] focus:ring-2 focus:ring-[#1a2f6e]/20 resize-y min-h-32 leading-relaxed mt-3"
+        />
       </Card>
     </div>
   );

@@ -169,6 +169,21 @@ model Product {
   status          ProductStatus @default(ACTIVE)
   quantity        Int           @default(0)
   basePrice       Int           @default(0)
+
+  // Inventory tab — component parts and accessories
+  // Author: Puran
+  // Impact: JSONB arrays storing the base loading list and required
+  //         accessories for this product. Each component row has
+  //         {name, quantity, qtyFormula, warehouseNote}; each accessory
+  //         has {name, requirement}. Stored as JSONB rather than
+  //         normalised tables — same reasoning as pricingConfig/addonGroups.
+  // Reason: the warehouse pick list and the quote builder both read
+  //         these arrays at runtime. The component list drives what
+  //         goes on the truck; accessories are cross-tracked items
+  //         that must accompany the product.
+  components      Json?         @default("[]")
+  accessories     Json?         @default("[]")
+
   setupMinutes    Int           @default(0)
   packdownMinutes Int           @default(0)
 
@@ -251,6 +266,15 @@ model Product {
   salesNotes     String?
   warehouseNotes String?
   aiRules        String?
+
+  // Author: Puran
+  // Impact: free-text notes shown to the sales team inside the
+  //         quote builder configurator modal for this product
+  // Reason: spec §8 step 2 — the configurator is built from
+  //         pricingConfig + addonGroups + these human-written notes.
+  //         Separate from salesNotes (general briefing) because
+  //         configNotes are contextual to the configuration UI only.
+  configNotes    String?
 
   images          String[]      @default([])
   tags            String[]      @default([])

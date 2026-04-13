@@ -22,6 +22,7 @@ export default function Home() {
           width={240}
           height={100}
           className="object-contain"
+          style={{ height: 'auto' }}
           priority
         />
         <div className="flex flex-col items-center gap-2">
