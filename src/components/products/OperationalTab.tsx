@@ -305,13 +305,19 @@ export function OperationalTab(props: OperationalTabProps) {
           <button
             type="button"
             onClick={() => {
-              if (!customDraft.trim()) {
-                setCustomDraft("");
-                const input = document.getElementById("custom-flag-input");
-                input?.focus();
+              const value = window.prompt("Enter a custom flag name:");
+              if (!value) return;
+              const trimmed = value.trim();
+              if (!trimmed) return;
+              if (trimmed.length > 80) {
+                toast.error("Flag name must be 80 characters or less.");
                 return;
               }
-              addCustomFlag();
+              if (flagSet.has(trimmed)) {
+                toast.info("This flag already exists.");
+                return;
+              }
+              onChangeHandlingFlags([...handlingFlags, trimmed]);
             }}
             className="inline-flex items-center justify-center rounded-full bg-[#042E93] px-5 h-10 text-xs font-semibold text-white transition-colors hover:bg-[#042E93]/90 cursor-pointer"
           >
@@ -370,21 +376,6 @@ export function OperationalTab(props: OperationalTabProps) {
           </div>
         )}
 
-        {/* Inline custom flag input — always visible so user can type + Enter */}
-        <div className="mt-4 max-w-sm">
-          <Input
-            id="custom-flag-input"
-            value={customDraft}
-            onChange={(e) => setCustomDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCustomFlag();
-              }
-            }}
-            placeholder="Type a custom flag and press Enter"
-          />
-        </div>
       </Card>
     </div>
   );
