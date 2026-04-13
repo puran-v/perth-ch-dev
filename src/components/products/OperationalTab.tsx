@@ -325,9 +325,9 @@ export function OperationalTab(props: OperationalTabProps) {
           </button>
         </div>
 
-        {/* Built-in preset grid — 1 col mobile, 2 sm, 3 md+ */}
+        {/* All flags in one grid — presets + custom, same chip style */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {BUILTIN_FLAGS.map((flag) => (
+          {[...BUILTIN_FLAGS, ...customFlags].map((flag) => (
             <FlagChip
               key={flag}
               label={flag}
@@ -336,45 +336,6 @@ export function OperationalTab(props: OperationalTabProps) {
             />
           ))}
         </div>
-
-        {/* Custom flags — org-specific flags added by the user */}
-        {customFlags.length > 0 && (
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Custom flags
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {customFlags.map((flag) => (
-                <span
-                  key={flag}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-blue bg-blue-50 px-3 h-8 text-xs font-medium text-blue"
-                >
-                  {flag}
-                  <button
-                    type="button"
-                    onClick={() => removeCustomFlag(flag)}
-                    className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue/10 cursor-pointer"
-                    aria-label={`Remove flag ${flag}`}
-                  >
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
       </Card>
     </div>
