@@ -30,6 +30,8 @@
 //         the parent puts every operational field in `buildPayload()`
 //         alongside the Basic Info fields.
 
+import { useState } from "react";
+import { toast } from "react-toastify";
 import { Card } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 
@@ -135,18 +137,18 @@ export function OperationalTab(props: OperationalTabProps) {
     onChangeHandlingFlags,
   } = props;
 
-  // Old Author: Puran
-  // New Author: Puran
-  // Impact: dropped the custom-flag draft input, helpers, and the
-  //         preset-vs-custom split. Only the built-in preset grid
-  //         remains.
-  // Reason: client confirmed there is no Custom flags row in the
-  //         Figma — handling flags are a fixed set of presets only.
-  //         Removing the inline add input + custom chip row trims
-  //         dead UI without breaking the storage contract (the
-  //         column is still text[] so re-introducing custom flags
-  //         later is purely a UI change).
+  // Author: Puran
+  // Impact: preset toggle + custom flag input so each company can
+  //         create their own handling flags beyond the 9 built-in ones
+  // Reason: client requirement — orgs have unique handling needs that
+  //         the fixed preset list can't cover. The storage is already
+  //         text[] so custom strings flow through without any backend
+  //         change. Custom flags show as removable chips below presets.
   const flagSet = new Set(handlingFlags);
+  const builtinSet = new Set<string>(BUILTIN_FLAGS);
+  const customFlags = handlingFlags.filter((f) => !builtinSet.has(f));
+
+  const [customDraft, setCustomDraft] = useState("");
 
   const togglePreset = (flag: string) => {
     if (flagSet.has(flag)) {
@@ -154,6 +156,25 @@ export function OperationalTab(props: OperationalTabProps) {
     } else {
       onChangeHandlingFlags([...handlingFlags, flag]);
     }
+  };
+
+  const addCustomFlag = () => {
+    const trimmed = customDraft.trim();
+    if (!trimmed) return;
+    if (trimmed.length > 80) {
+      toast.error("Flag name must be 80 characters or less.");
+      return;
+    }
+    if (flagSet.has(trimmed)) {
+      toast.info("This flag already exists.");
+      return;
+    }
+    onChangeHandlingFlags([...handlingFlags, trimmed]);
+    setCustomDraft("");
+  };
+
+  const removeCustomFlag = (flag: string) => {
+    onChangeHandlingFlags(handlingFlags.filter((f) => f !== flag));
   };
 
   // Author: Puran
@@ -295,6 +316,70 @@ export function OperationalTab(props: OperationalTabProps) {
           ))}
         </div>
 
+        {/* Custom flags — org-specific flags added by the user */}
+        {customFlags.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Custom flags
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {customFlags.map((flag) => (
+                <span
+                  key={flag}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-blue bg-blue-50 px-3 h-8 text-xs font-medium text-blue"
+                >
+                  {flag}
+                  <button
+                    type="button"
+                    onClick={() => removeCustomFlag(flag)}
+                    className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue/10 cursor-pointer"
+                    aria-label={`Remove flag ${flag}`}
+                  >
+                    <svg
+                      className="h-3 w-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add custom flag input */}
+        <div className="mt-4 flex items-end gap-3">
+          <div className="flex-1 max-w-sm">
+            <Input
+              label="Add custom flag"
+              value={customDraft}
+              onChange={(e) => setCustomDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustomFlag();
+                }
+              }}
+              placeholder="e.g. Requires forklift"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={addCustomFlag}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-12 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
+          >
+            <PlusIcon />
+            Add
+          </button>
+        </div>
       </Card>
     </div>
   );
@@ -332,6 +417,25 @@ interface FlagChipProps {
  * @created 2026-04-07
  * @module Module A - Products (Operational tab)
  */
+function PlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 4.5v15m7.5-7.5h-15"
+      />
+    </svg>
+  );
+}
+
 function FlagChip({ label, selected, onToggle }: FlagChipProps) {
   return (
     <button
