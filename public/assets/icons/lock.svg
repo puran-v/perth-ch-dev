@@ -1,12 +1,5 @@
-<<<<<<< HEAD
 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M14.1667 9.16668H5.83337C4.91289 9.16668 4.16671 9.91288 4.16671 10.8334V15.8334C4.16671 16.7538 4.91289 17.5 5.83337 17.5H14.1667C15.0872 17.5 15.8334 16.7538 15.8334 15.8334V10.8334C15.8334 9.91288 15.0872 9.16668 14.1667 9.16668Z" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M10 14.1667C10.4603 14.1667 10.8334 13.7936 10.8334 13.3333C10.8334 12.8731 10.4603 12.5 10 12.5C9.53981 12.5 9.16671 12.8731 9.16671 13.3333C9.16671 13.7936 9.53981 14.1667 10 14.1667Z" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M6.66671 9.16668V5.83334C6.66671 4.94929 7.01789 4.10144 7.64302 3.47632C8.26814 2.8512 9.11599 2.50001 10 2.50001C10.8841 2.50001 11.7319 2.8512 12.357 3.47632C12.9822 4.10144 13.3334 4.94929 13.3334 5.83334V9.16668" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-=======
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M17 11H7C5.89543 11 5 11.8954 5 13V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V13C19 11.8954 18.1046 11 17 11Z" stroke="#111827" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 11V7C8 5.93913 8.42143 4.92172 9.17157 4.17157C9.92172 3.42143 10.9391 3 12 3C13.0609 3 14.0783 3.42143 14.8284 4.17157C15.5786 4.92172 16 5.93913 16 7V11" stroke="#111827" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
->>>>>>> main
 </svg>

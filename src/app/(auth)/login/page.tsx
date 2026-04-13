@@ -19,6 +19,7 @@ export default function LoginPage() {
           width={325}
           height={136}
           className="object-contain"
+          style={{ height: 'auto' }}
           priority
         />
         <p className="text-white text-lg font-semibold tracking-wide">
@@ -36,6 +37,7 @@ export default function LoginPage() {
             width={160}
             height={72}
             className="object-contain"
+            style={{ height: 'auto' }}
             priority
           />
         </div>

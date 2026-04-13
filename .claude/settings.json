@@ -14,7 +14,9 @@
       "Bash(git commit:*)",
       "Bash(npx eslint:*)",
       "Bash(/usr/local/bin/npx tsc:*)",
-      "Read(//opt/homebrew/bin/**)"
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(echo \"TSC=$?\")",
+      "Bash(grep -A 20 \"addonGroups\\\\|incomingAddonGroups\" /Users/mac/Desktop/Puran/PerthCH/Dev/perth-ch-dev/perth-ch-dev/src/app/api/orgs/current/products/[id]/route.ts)"
     ],
     "additionalDirectories": [
       "/Users/mac/Desktop/Puran/PerthCH/Dev/perth-ch-dev/perth-ch-dev/src/app/(dashboard)/dashboard/products/[id]"

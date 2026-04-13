@@ -64,8 +64,10 @@ import {
 //         from the sign-off (no new bulk endpoint).
 import { apiClient } from "@/lib/api-client";
 import type {
+  AccessoryRow,
   AddonGroup,
   AddonOption,
+  ComponentRow,
   CreateProductInput,
   CreateVariantInput,
   DimensionBasedConfig,
@@ -252,6 +254,39 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
   const [configurable, setConfigurable] = useState(initialProduct?.configurable ?? false);
   const [status, setStatus] = useState<ProductStatus>(initialProduct?.status ?? "ACTIVE");
   const [tags, setTags] = useState<string[]>(initialProduct?.tags ?? []);
+  // Author: Puran
+  // Impact: product-level base price — the fixed price that appears on
+  //         the quote before any add-ons are stacked on top
+  // Reason: spec §2 + §5 model 3 — STANDARD products use basePrice as
+  //         the only price, QUANTITY_ADDONS uses it as the starting
+  //         price before add-on selections are applied. Dimension-based
+  //         and size-variant types compute their own price via formulas
+  //         or variant rows, so basePrice is irrelevant to them.
+  //         Named `productBasePrice` to avoid collision with the
+  //         dimension-based `basePrice` state (pricingConfig field for
+  //         the base_plus_sqm method — different concept entirely).
+  const [productBasePrice, setProductBasePrice] = useState(
+    initialProduct?.basePrice !== undefined
+      ? String(initialProduct.basePrice)
+      : "0"
+  );
+
+  // ── Inventory tab state ──────────────────────────────────────────────
+  // Author: Puran
+  // Impact: quantity, components, and accessories lifted from InventoryTab
+  //         mock state into real form state hydrated from initialProduct
+  // Reason: these fields need to persist through buildPayload → API
+  const [inventoryQuantity, setInventoryQuantity] = useState(
+    initialProduct?.quantity !== undefined
+      ? String(initialProduct.quantity)
+      : "0"
+  );
+  const [components, setComponents] = useState<ComponentRow[]>(
+    (initialProduct?.components as ComponentRow[]) ?? []
+  );
+  const [accessories, setAccessories] = useState<AccessoryRow[]>(
+    (initialProduct?.accessories as AccessoryRow[]) ?? []
+  );
 
   // Author: Puran
   // Impact: real API mutations replace the toast stub
@@ -351,6 +386,14 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     initialProduct?.warehouseNotes ?? ""
   );
   const [aiRules, setAiRules] = useState(initialProduct?.aiRules ?? "");
+  // Author: Puran
+  // Impact: configuration notes shown to sales team in the configurator
+  // Reason: spec §8 step 2 — the modal UI is built from pricingConfig +
+  //         addonGroups + these notes, giving the admin a way to add
+  //         context that the sales team sees while configuring the product
+  const [configNotes, setConfigNotes] = useState(
+    initialProduct?.configNotes ?? ""
+  );
 
   // ── Configuration tab state (Phase 2 — lifted from local) ──────────
   //
@@ -716,6 +759,10 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     subcategory: subcategory.trim() || null,
     description: description.trim() || null,
     configurable,
+    basePrice: parseInt(productBasePrice, 10) || 0,
+    quantity: parseInt(inventoryQuantity, 10) || 0,
+    components,
+    accessories,
     // Author: Puran
     // Impact: Configuration tab fields — productType discriminator,
     //         the model-specific pricingConfig (or null), and the
@@ -754,6 +801,7 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
     salesNotes: salesNotes.trim() || null,
     warehouseNotes: warehouseNotes.trim() || null,
     aiRules: aiRules.trim() || null,
+    configNotes: configNotes.trim() || null,
     images,
     tags,
   });
@@ -1889,7 +1937,15 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
       ) : activeTab === "pricing" ? (
         <PricingTab />
       ) : activeTab === "inventory" ? (
-        <InventoryTab productType={productType} />
+        <InventoryTab
+          productType={productType}
+          quantity={inventoryQuantity}
+          onChangeQuantity={setInventoryQuantity}
+          components={components}
+          onChangeComponents={setComponents}
+          accessories={accessories}
+          onChangeAccessories={setAccessories}
+        />
       ) : activeTab === "operational" ? (
         <OperationalTab
           setupMinutes={setupMinutes}
@@ -1988,6 +2044,10 @@ export function ProductEditorForm({ initialProduct }: ProductEditorFormProps) {
           onAddAddonOption={handleAddAddonOption}
           onChangeAddonOption={handleAddonOptionChange}
           onRemoveAddonOption={handleRemoveAddonOption}
+          productBasePrice={productBasePrice}
+          onChangeProductBasePrice={setProductBasePrice}
+          configNotes={configNotes}
+          onChangeConfigNotes={setConfigNotes}
         />
       ) : (
         <ComingSoonTab

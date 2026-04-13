@@ -102,6 +102,37 @@ export interface DimensionBasedConfig {
   pricingTiers?: PricingTier[];
 }
 
+// ── Inventory tab types ──────────────────────────────────────────────
+
+/** Qty formula for a component row — drives how the warehouse
+ *  calculates the actual quantity to load. */
+export type QtyFormula = "fixed" | "per_crew" | "per_hour" | "per_day";
+
+/** Accessory requirement level. */
+export type AccessoryRequirement = "always" | "optional" | "conditional";
+
+/**
+ * One row in the base components list (inventory tab). Stored as
+ * JSONB on `Product.components`. The warehouse pick list reads
+ * this array to build the loading manifest.
+ */
+export interface ComponentRow {
+  name: string;
+  quantity: number;
+  qtyFormula?: QtyFormula;
+  warehouseNote?: string | null;
+}
+
+/**
+ * One row in the accessories list (inventory tab). Stored as
+ * JSONB on `Product.accessories`. These are cross-tracked items
+ * that must accompany the product.
+ */
+export interface AccessoryRow {
+  name: string;
+  requirement: AccessoryRequirement;
+}
+
 /**
  * Pricing unit for an add-on option. Drives quote-builder math when
  * the sales team picks the option.
@@ -335,6 +366,9 @@ export interface ProductRow {
   status: ProductStatus;
   quantity: number;
   basePrice: number;
+  // Inventory tab
+  components: ComponentRow[];
+  accessories: AccessoryRow[];
   setupMinutes: number;
   packdownMinutes: number;
   // Operational tab
@@ -359,6 +393,8 @@ export interface ProductRow {
   salesNotes: string | null;
   warehouseNotes: string | null;
   aiRules: string | null;
+  // Configuration tab — notes shown to sales in the configurator
+  configNotes: string | null;
   images: string[];
   tags: string[];
   createdAt: string;
@@ -416,6 +452,9 @@ export interface CreateProductInput {
   status?: ProductStatus;
   quantity?: number;
   basePrice?: number;
+  // Inventory tab
+  components?: ComponentRow[];
+  accessories?: AccessoryRow[];
   setupMinutes?: number;
   packdownMinutes?: number;
   // Operational tab
@@ -440,6 +479,8 @@ export interface CreateProductInput {
   salesNotes?: string | null;
   warehouseNotes?: string | null;
   aiRules?: string | null;
+  // Configuration tab
+  configNotes?: string | null;
   images?: string[];
   tags?: string[];
 }
