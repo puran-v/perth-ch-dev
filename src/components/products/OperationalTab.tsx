@@ -302,6 +302,21 @@ export function OperationalTab(props: OperationalTabProps) {
       <Card padding="md">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-slate-900">Handling flags</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!customDraft.trim()) {
+                setCustomDraft("");
+                const input = document.getElementById("custom-flag-input");
+                input?.focus();
+                return;
+              }
+              addCustomFlag();
+            }}
+            className="inline-flex items-center justify-center rounded-full bg-[#042E93] px-5 h-10 text-xs font-semibold text-white transition-colors hover:bg-[#042E93]/90 cursor-pointer"
+          >
+            Add New Custom Notes
+          </button>
         </div>
 
         {/* Built-in preset grid — 1 col mobile, 2 sm, 3 md+ */}
@@ -355,30 +370,20 @@ export function OperationalTab(props: OperationalTabProps) {
           </div>
         )}
 
-        {/* Add custom flag input */}
-        <div className="mt-4 flex items-end gap-3">
-          <div className="flex-1 max-w-sm">
-            <Input
-              label="Add custom flag"
-              value={customDraft}
-              onChange={(e) => setCustomDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addCustomFlag();
-                }
-              }}
-              placeholder="e.g. Requires forklift"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={addCustomFlag}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1a2f6e] bg-white px-4 h-12 text-xs font-semibold text-[#1a2f6e] transition-colors hover:bg-[#1a2f6e]/5 cursor-pointer"
-          >
-            <PlusIcon />
-            Add
-          </button>
+        {/* Inline custom flag input — always visible so user can type + Enter */}
+        <div className="mt-4 max-w-sm">
+          <Input
+            id="custom-flag-input"
+            value={customDraft}
+            onChange={(e) => setCustomDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addCustomFlag();
+              }
+            }}
+            placeholder="Type a custom flag and press Enter"
+          />
         </div>
       </Card>
     </div>
