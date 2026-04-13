@@ -67,6 +67,27 @@ enum ProductType {
   QUANTITY_ADDONS
 }
 
+// Author: samir
+// Impact: discriminates whether a bundle's items can be modified on a quote
+// Reason: FLEXIBLE bundles let sales swap items; LOCKED bundles are sold
+//         as-is. Drives UI logic in the quote builder.
+enum BundleType {
+  FLEXIBLE
+  LOCKED
+}
+
+// Author: samir
+// Impact: determines which pricing fields apply to a bundle
+// Reason: each method stores a different JSON shape in pricingConfig —
+//         TIERED (base + extra hours), HOURLY (rate × hours), DAILY
+//         (full/half day), CUSTOM (user-defined tier rows).
+enum BundlePricingMethod {
+  HOURLY
+  TIERED
+  DAILY
+  CUSTOM
+}
+
 model Organization {
   id        String    @id @default(cuid())
   name      String
@@ -89,6 +110,11 @@ model Organization {
   productCategories     ProductCategory[]
   bookings              Booking[]
   importJobs            ImportJob[]
+  // Author: samir
+  // Impact: back-references for the Module A Bundles & Packages feature
+  // Reason: every tenant-scoped model needs a relation back to Organization
+  bundles               Bundle[]
+  bundleItems           BundleItem[]
 
   @@map("organizations")
 }
@@ -302,6 +328,11 @@ model Product {
   //         id is what eventually lands on reservation rows when the
   //         quote builder ships.
   variants    ProductVariant[]
+  // Author: samir
+  // Impact: products can appear in multiple bundles via the BundleItem junction table
+  // Reason: many-to-many relationship — a product can be in several bundles and
+  //         a bundle can contain several products
+  bundleItems BundleItem[]
 
   @@unique([orgId, sku])
   @@index([orgId])
@@ -807,4 +838,84 @@ model ImportJob {
   // round-trip pulls the latest job for each ImportKind in the org
   @@index([orgId, kind, createdAt(sort: Desc)])
   @@map("import_jobs")
+}
+
+/// Bundle — pre-grouped product package sold as a single unit
+/// (Module A — Bundles & Packages, org-setup step 5).
+///
+/// A bundle aggregates multiple products from the catalogue into a
+/// discounted package. Pricing is stored as a discriminated JSON blob
+/// keyed by `pricingMethod` (same pattern as Product.pricingConfig).
+///
+/// `type` controls quote-builder behaviour:
+///   FLEXIBLE — sales can swap individual items on a quote
+///   LOCKED   — sold exactly as configured, no item changes
+///
+/// @author samir
+/// @created 2026-04-13
+/// @module Module A - Bundles & Packages
+model Bundle {
+  id                  String              @id @default(cuid())
+  orgId               String
+  name                String
+  type                BundleType          @default(FLEXIBLE)
+  pricingMethod       BundlePricingMethod @default(TIERED)
+  // JSON blob whose shape depends on pricingMethod:
+  //   TIERED:  { basePrice, includedHours, perExtraHourRate, maxHireHours, overnightRate?, publicHolidayRate? }
+  //   HOURLY:  { ratePerHour, minimumHireHours }
+  //   DAILY:   { fullDayRate, halfDayRate, dailyOvernightRate }
+  //   CUSTOM:  { tiers: [{ tierType, hours, price }] }
+  pricingConfig       Json?
+  // Computed bundle price in whole dollars — the price shown in the table
+  bundlePrice         Int                 @default(0)
+  // Savings compared to buying items individually — shown as a pill
+  savings             Int                 @default(0)
+  // Comma-separated suggested event types (e.g. "Kids birthday, Corporate")
+  suggestedEventTypes String?
+  internalNotes       String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  items BundleItem[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@index([orgId, deletedAt])
+  @@map("bundles")
+}
+
+/// BundleItem — junction row linking a Bundle to a Product.
+///
+/// Each row means "this bundle includes N of this product."
+/// A product can appear in multiple bundles and a bundle can
+/// contain multiple products (classic many-to-many via junction).
+///
+/// @author samir
+/// @created 2026-04-13
+/// @module Module A - Bundles & Packages
+model BundleItem {
+  id        String @id @default(cuid())
+  orgId     String
+  bundleId  String
+  productId String
+  quantity  Int    @default(1)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bundle  Bundle       @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([bundleId, productId])
+  @@index([orgId])
+  @@index([bundleId])
+  @@index([productId])
+  @@map("bundle_items")
 }

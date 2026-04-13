@@ -25,7 +25,7 @@
 // Reason: this is Module A step 5 after Products. UI ships first;
 //         backend follows.
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { ModuleGuard } from "@/components/auth/ModuleGuard";
@@ -34,6 +34,9 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import Input from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useBundleList, useCreateBundle } from "@/hooks/bundles/useBundles";
+import { useProductList } from "@/hooks/products/useProducts";
+import type { BundleRow, BundlePricingMethod as BundlePricingMethodType, CreateBundleInput } from "@/types/bundles";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -51,8 +54,8 @@ interface CustomTier {
   price: string;
 }
 
-/** Row shape for the packages table. */
-interface BundleRow {
+/** Flattened row shape for the packages table (derived from API response). */
+interface BundleTableRow {
   id: string;
   name: string;
   itemCount: number;
@@ -62,52 +65,6 @@ interface BundleRow {
   type: BundleType;
   suggestedFor: string;
 }
-
-// ─── Mock data ─────────────────────────────────────────────────────────
-
-const MOCK_BUNDLES: BundleRow[] = [
-  {
-    id: "bnd-001",
-    name: "Kids Party Starter",
-    itemCount: 3,
-    itemsIncluded: "Big Blue Castle, Snow Cone Machine, Face Painting Kit",
-    bundlePrice: 480,
-    savings: 60,
-    type: "FLEXIBLE",
-    suggestedFor: "Kids birthday",
-  },
-  {
-    id: "bnd-002",
-    name: "Corporate Event Pack",
-    itemCount: 4,
-    itemsIncluded: "Axe Throwing x2, Pedal Kart Set, Silent Disco Kit",
-    bundlePrice: 980,
-    savings: 60,
-    type: "LOCKED",
-    suggestedFor: "Corporate, team building",
-  },
-  {
-    id: "bnd-003",
-    name: "Kids Party Starter",
-    itemCount: 3,
-    itemsIncluded: "Big Blue Castle, Snow Cone Machine, Face Painting Kit",
-    bundlePrice: 480,
-    savings: 60,
-    type: "FLEXIBLE",
-    suggestedFor: "Kids birthday",
-  },
-];
-
-// ─── Mock products list for the "Products included" selector ───────────
-
-const MOCK_PRODUCTS = [
-  { name: "Big Blue Castle", price: 280 },
-  { name: "Bungee Trampoline", price: 650 },
-  { name: "Axe Throwing Station", price: 180 },
-  { name: "Dunk Tank", price: 320 },
-  { name: "Silent Disco Kit", price: null },
-  { name: "Pedal Kart Set", price: 220 },
-];
 
 // ─── Page entry ────────────────────────────────────────────────────────
 
@@ -134,9 +91,21 @@ function BundlesCatalogue() {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Author: samir
-  // Impact: mock data until backend exists
-  // Reason: UI-first approach — real hook swap is a single import change
-  const bundles: BundleRow[] = useMemo(() => MOCK_BUNDLES, []);
+  // Impact: replaced mock data with real API hooks
+  // Reason: backend is now wired — bundles come from /api/orgs/current/bundles
+  const { data: rawBundles, isLoading } = useBundleList();
+
+  // Map API response to table row shape
+  const bundles: BundleTableRow[] = (rawBundles ?? []).map((b: BundleRow) => ({
+    id: b.id,
+    name: b.name,
+    itemCount: b.items?.length ?? 0,
+    itemsIncluded: b.items?.map((i) => i.product.name).join(", ") ?? "",
+    bundlePrice: b.bundlePrice,
+    savings: b.savings,
+    type: b.type as BundleType,
+    suggestedFor: b.suggestedEventTypes ?? "",
+  }));
 
   // ── Action handlers ──────────────────────────────────────────────────
 
@@ -148,7 +117,7 @@ function BundlesCatalogue() {
     setShowCreateForm(false);
   };
 
-  const handleEdit = (bundle: BundleRow) => {
+  const handleEdit = (bundle: BundleTableRow) => {
     toast.info(`Edit bundle: ${bundle.name} — coming soon.`);
   };
 
@@ -159,15 +128,28 @@ function BundlesCatalogue() {
   // Reason: duplicate action rows made the scope of each button unclear
   //         and drifted from the rest of the setup-flow. Single footer
   //         row is the house pattern.
+  // Author: samir
+  // Impact: Save Draft navigates forward without requiring bundles
+  // Reason: draft mode never gates progress — user can skip and come back
   const handleSaveDraft = () => {
-    toast.success(
-      showCreateForm ? "Bundle saved as draft." : "Bundles saved as draft."
-    );
+    toast.success("Bundles saved as draft.");
     setShowCreateForm(false);
+    router.push("/dashboard/quote-templates");
   };
 
+  // Author: samir
+  // Impact: Save & Continue requires at least one bundle to exist
+  // Reason: same gate pattern as the Team page — ensures meaningful data
+  //         exists before marking the step as complete in the stepper
   const handleSaveContinue = () => {
-    toast.success(showCreateForm ? "Bundle saved." : "Bundles saved.");
+    if (isLoading) return;
+    if (bundles.length === 0) {
+      toast.error(
+        "Add at least one bundle before continuing. Use the \"+ Create bundle\" button above."
+      );
+      return;
+    }
+    toast.success("Bundles saved.");
     setShowCreateForm(false);
     router.push("/dashboard/quote-templates");
   };
@@ -198,8 +180,13 @@ function BundlesCatalogue() {
           </Button>
         </div>
 
-        {/* Body — empty state OR table+cards */}
-        {bundles.length === 0 ? (
+        {/* Body — loading, empty, or table */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+            <span className="ml-3 text-sm text-slate-500">Loading bundles...</span>
+          </div>
+        ) : bundles.length === 0 ? (
           <EmptyState
             title="No bundles yet"
             description="Create your first bundle to offer pre-grouped products on quotes."
@@ -283,7 +270,12 @@ function BundlesCatalogue() {
       </Card>
 
       {/* Inline "New bundle" form — shown when "+ Create bundle" is clicked */}
-      {showCreateForm && <NewBundleForm onCancel={handleCancelCreate} />}
+      {showCreateForm && (
+        <NewBundleForm
+          onCancel={handleCancelCreate}
+          onCreated={() => setShowCreateForm(false)}
+        />
+      )}
 
       {/* Setup-flow nav row — Save & Draft + Save & Continue.
           Matches the Teams and Org Setup pages' footer pattern. */}
@@ -306,6 +298,7 @@ function BundlesCatalogue() {
 
 interface NewBundleFormProps {
   onCancel: () => void;
+  onCreated?: () => void;
 }
 
 /**
@@ -319,10 +312,16 @@ interface NewBundleFormProps {
  * @created 2026-04-10
  * @module Module A - Bundles & Packages
  */
-function NewBundleForm({ onCancel }: NewBundleFormProps) {
+function NewBundleForm({ onCancel, onCreated }: NewBundleFormProps) {
+  // Author: samir
+  // Impact: real product list from API replaces MOCK_PRODUCTS
+  // Reason: products included selector now shows the org's actual catalogue
+  const { data: products } = useProductList();
+  const createBundle = useCreateBundle();
+
   const [bundleName, setBundleName] = useState("");
   const [bundleType, setBundleType] = useState("FLEXIBLE");
-  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [pricingMethod, setPricingMethod] = useState<BundlePricingMethod>("TIERED");
   const [basePrice, setBasePrice] = useState("0.00");
   const [includedHours, setIncludedHours] = useState("4");
@@ -400,12 +399,105 @@ function NewBundleForm({ onCancel }: NewBundleFormProps) {
    * @created 2026-04-10
    * @module Module A - Bundles & Packages
    */
-  const toggleProduct = (index: number) => {
+  const toggleProduct = (productId: string) => {
     setSelectedProducts((prev) =>
-      prev.includes(index)
-        ? prev.filter((i) => i !== index)
-        : [...prev, index]
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
     );
+  };
+
+  /**
+   * Builds the pricingConfig JSON from form state based on the selected method.
+   *
+   * @author samir
+   * @created 2026-04-13
+   * @module Module A - Bundles & Packages
+   */
+  const buildPricingConfig = () => {
+    switch (pricingMethod) {
+      case "TIERED":
+        return {
+          basePrice: parseFloat(basePrice) || 0,
+          includedHours: parseInt(includedHours) || 4,
+          perExtraHourRate: parseFloat(perExtraHourRate) || 0,
+          maxHireHours: parseInt(maxHireHours) || 12,
+          ...(overnightRate ? { overnightRate: parseFloat(overnightRate) } : {}),
+          ...(publicHolidayRate ? { publicHolidayRate: parseFloat(publicHolidayRate) } : {}),
+        };
+      case "HOURLY":
+        return {
+          ratePerHour: parseFloat(ratePerHour) || 0,
+          minimumHireHours: parseInt(minimumHireHours) || 2,
+        };
+      case "DAILY":
+        return {
+          fullDayRate: parseFloat(fullDayRate) || 0,
+          halfDayRate: parseFloat(halfDayRate) || 0,
+          dailyOvernightRate: parseFloat(dailyOvernightRate) || 0,
+        };
+      case "CUSTOM":
+        return {
+          tiers: customTiers.map((t) => ({
+            tierType: t.tierType,
+            hours: parseFloat(t.hours) || 0,
+            price: parseFloat(t.price) || 0,
+          })),
+        };
+      default:
+        return undefined;
+    }
+  };
+
+  /**
+   * Submits the form to the create bundle API.
+   *
+   * @author samir
+   * @created 2026-04-13
+   * @module Module A - Bundles & Packages
+   */
+  const handleSubmit = () => {
+    if (!bundleName.trim()) {
+      toast.error("Bundle name is required.");
+      return;
+    }
+    if (selectedProducts.length === 0) {
+      toast.error("Select at least one product.");
+      return;
+    }
+
+    // Compute bundle price from selected products' base prices
+    const selectedProductData = (products ?? []).filter((p) =>
+      selectedProducts.includes(p.id)
+    );
+    const individualTotal = selectedProductData.reduce(
+      (sum, p) => sum + (p.basePrice ?? 0),
+      0
+    );
+    const computedBundlePrice = parseFloat(basePrice) || individualTotal;
+    const computedSavings = Math.max(0, individualTotal - computedBundlePrice);
+
+    const input: CreateBundleInput = {
+      name: bundleName.trim(),
+      type: bundleType as BundleType,
+      pricingMethod: pricingMethod as BundlePricingMethodType,
+      pricingConfig: buildPricingConfig(),
+      bundlePrice: computedBundlePrice,
+      savings: computedSavings,
+      suggestedEventTypes: suggestedEventTypes.trim() || undefined,
+      internalNotes: internalNotes.trim() || undefined,
+      productIds: selectedProducts,
+    };
+
+    createBundle.mutate(input, {
+      onSuccess: () => {
+        toast.success("Bundle created successfully.");
+        onCreated?.();
+      },
+      onError: (err) => {
+        toast.error(err.message || "Failed to create bundle.");
+      },
+    });
   };
 
   return (
@@ -449,26 +541,32 @@ function NewBundleForm({ onCancel }: NewBundleFormProps) {
             Products included <span className="text-red-500">*</span>
           </label>
           <div className="rounded-2xl border border-gray-200 bg-white p-4 min-h-[140px] max-h-[220px] overflow-y-auto">
-            {MOCK_PRODUCTS.map((product, idx) => {
-              const isSelected = selectedProducts.includes(idx);
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggleProduct(idx)}
-                  className={[
-                    "flex items-center w-full px-2 py-2 rounded-lg text-sm text-left transition-colors",
-                    isSelected
-                      ? "bg-[#1a2f6e]/5 text-slate-900 font-medium"
-                      : "text-slate-700 hover:bg-slate-50",
-                  ].join(" ")}
-                  aria-label={`${isSelected ? "Deselect" : "Select"} ${product.name}`}
-                >
-                  {product.name} &mdash;{" "}
-                  {product.price ? `$${product.price}` : "TBC"}
-                </button>
-              );
-            })}
+            {(products ?? []).length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">
+                No products found. Add products first.
+              </p>
+            ) : (
+              (products ?? []).map((product) => {
+                const isSelected = selectedProducts.includes(product.id);
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => toggleProduct(product.id)}
+                    className={[
+                      "flex items-center w-full px-2 py-2 rounded-lg text-sm text-left transition-colors",
+                      isSelected
+                        ? "bg-[#1a2f6e]/5 text-slate-900 font-medium"
+                        : "text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                    aria-label={`${isSelected ? "Deselect" : "Select"} ${product.name}`}
+                  >
+                    {product.name} &mdash;{" "}
+                    {product.basePrice ? `$${product.basePrice}` : "TBC"}
+                  </button>
+                );
+              })
+            )}
           </div>
           <p className="text-xs text-blue-600">
             Hold Ctrl/Cmd to select multiple
@@ -741,6 +839,21 @@ function NewBundleForm({ onCancel }: NewBundleFormProps) {
             rows={3}
             className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-[#1a2f6e] focus:ring-2 focus:ring-[#1a2f6e]/20 resize-none"
           />
+        </div>
+
+        {/* Form actions */}
+        <div className="flex items-center gap-3 pt-2">
+          <Button
+            variant="primary"
+            size="md"
+            loading={createBundle.isPending}
+            onClick={handleSubmit}
+          >
+            Create bundle
+          </Button>
+          <Button variant="outline" size="md" onClick={onCancel}>
+            Cancel
+          </Button>
         </div>
 
       </div>
