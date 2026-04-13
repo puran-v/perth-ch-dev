@@ -114,7 +114,13 @@ export type Permission =
   // Reason: csv_design.md is a one-time data migration tool — only ADMIN /
   //         MANAGER should be able to run it. Single permission for all
   //         three kinds because the Figma surfaces all 3 cards together.
-  | "import.run";
+  | "import.run"
+  // Author: samir
+  // Impact: gates read and manage access to the Bundles & Packages feature
+  // Reason: bundles are part of Module A (org-setup step 5). MANAGER+ can
+  //         create/edit/delete bundles; STAFF can view them for quoting context.
+  | "bundle.read"
+  | "bundle.manage";
 
 // ── Session resolution ───────────────────────────────────────────────
 
@@ -355,6 +361,7 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
     "booking.read", "booking.create", "booking.update", "booking.approve",
     "inventory.read", "inventory.update",
     "product.read", "product.manage",
+    "bundle.read", "bundle.manage",
     "warehouse.read", "warehouse.update",
     "finance.read",
     "team.read", "team.update", "team.invite",
@@ -368,6 +375,7 @@ const ROLE_PERMISSIONS: Record<UserRole, (Permission | "*")[]> = {
     "booking.read",
     "inventory.read",
     "product.read",
+    "bundle.read",
     "warehouse.read", "warehouse.update",
   ],
   DRIVER: [

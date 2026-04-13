@@ -38,6 +38,12 @@ import { CURRENT_USER_QUERY_KEY, useCurrentUser } from '@/hooks/useCurrentUser';
 //         "hasTeammate" gate the team page enforces on Save & Continue
 import { useMembers } from '@/hooks/team/useMembers';
 import { useInvitations } from '@/hooks/team/useInvitations';
+// Author: samir
+// Impact: derive Bundles-step completion from live bundle list
+// Reason: same live-query pattern as Team — the stepper green tick
+//         flips on once the org has at least one bundle, matching the
+//         Save & Continue gate on the bundles page
+import { useBundleList } from '@/hooks/bundles/useBundles';
 import { ApiError } from '@/lib/api-client';
 import {
   type BusinessInfoInput,
@@ -95,6 +101,7 @@ function buildSetupSteps(
   orgInfoComplete: boolean,
   brandingComplete: boolean,
   teamComplete: boolean,
+  bundlesComplete: boolean,
 ): StepperStep[] {
   // The Org Info step is "current" when nothing is complete yet, then
   // "completed" once business info is saved. Branding follows the same
@@ -121,6 +128,15 @@ function buildSetupSteps(
     ? 'current'
     : 'pending';
 
+  // Author: samir
+  // Impact: Bundles step flips to 'completed' once the org has at least one bundle
+  // Reason: same live-query pattern as Team — completion derived from useBundleList
+  const bundlesStatus: StepperStep['status'] = bundlesComplete
+    ? 'completed'
+    : teamComplete
+    ? 'current'
+    : 'pending';
+
   return [
     {
       id: 'org-info',
@@ -138,7 +154,7 @@ function buildSetupSteps(
     },
     { id: 'team', label: 'Team', status: teamStatus, stepNumber: 3, href: '/dashboard/team' },
     { id: 'products', label: 'Products', status: 'pending', stepNumber: 4, href: '/dashboard/products' },
-    { id: 'bundles', label: 'Bundles', status: 'pending', stepNumber: 5, href: '/dashboard/bundles' },
+    { id: 'bundles', label: 'Bundles', status: bundlesStatus, stepNumber: 5, href: '/dashboard/bundles' },
     { id: 'rules', label: 'Rules', status: 'pending', stepNumber: 6, href: '/dashboard/pricing' },
   ];
 }
@@ -270,19 +286,30 @@ export default function OrgSetupPage() {
     return memberCount + pendingInviteCount > 0;
   }, [members, invitations]);
 
+  // Author: samir
+  // Impact: derive Bundles-step completion from live bundle count
+  // Reason: same pattern as Team — "at least one bundle exists" is the
+  //         completion gate, matching the Save & Continue check on the
+  //         bundles page
+  const { data: bundlesList } = useBundleList();
+  const bundlesComplete = useMemo(() => {
+    return (bundlesList?.length ?? 0) > 0;
+  }, [bundlesList]);
+
   // Only render forms once the initial load has resolved. This avoids
   // the "flash of empty form" race when initialData arrives late — the
   // forms capture initialData into local state on mount and never re-read
   // it, so the parent must gate rendering on the query result.
   const setupSteps = useMemo(
-    () => buildSetupSteps(orgInfoComplete, brandingComplete, teamComplete),
-    [orgInfoComplete, brandingComplete, teamComplete],
+    () => buildSetupSteps(orgInfoComplete, brandingComplete, teamComplete, bundlesComplete),
+    [orgInfoComplete, brandingComplete, teamComplete, bundlesComplete],
   );
 
   const completedCount =
     (orgInfoComplete ? 1 : 0) +
     (brandingComplete ? 1 : 0) +
-    (teamComplete ? 1 : 0);
+    (teamComplete ? 1 : 0) +
+    (bundlesComplete ? 1 : 0);
 
   /**
    * Collects current values from every mounted form. Safe to call during
