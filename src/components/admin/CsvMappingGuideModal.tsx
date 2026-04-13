@@ -402,27 +402,27 @@ function FieldReferenceTab({
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50">
-            <tr>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr className="font-medium">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-black">
                 CSV Column Header
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-black">
                 Maps To
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-black">
                 Required
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-black">
                 Type
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-black">
                 Notes
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {guide.fields.map((f) => (
-              <tr key={f.column}>
+              <tr key={f.column} className="font-normal">
                 <td className="px-4 py-3 font-mono text-sm text-blue-600 whitespace-nowrap">
                   {f.column}
                 </td>
@@ -430,7 +430,7 @@ function FieldReferenceTab({
                   {f.mapsTo}
                 </td>
                 <td
-                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${
+                  className={`px-4 py-3 text-sm whitespace-nowrap ${
                     f.required ? "text-red-500" : "text-slate-500"
                   }`}
                 >

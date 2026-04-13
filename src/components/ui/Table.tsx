@@ -53,12 +53,12 @@ export function Table<T>({
     <div className={`overflow-x-auto ${className}`}>
       <table className="w-full text-sm text-left">
         <thead>
-          <tr className="border-b border-slate-200">
+          <tr className="border-b border-slate-200 font-medium">
             {columns.map((col) => (
               <th
                 key={col.key}
                 className={[
-                  'px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider',
+                  'px-6 py-3 text-xs font-medium text-black uppercase tracking-wider whitespace-nowrap',
                   col.headerClassName || '',
                   col.width || '',
                 ]
@@ -89,6 +89,7 @@ export function Table<T>({
               <tr
                 key={keyExtractor(row, index)}
                 className={[
+                  'font-normal',
                   striped && index % 2 === 1 ? 'bg-slate-50' : '',
                   hoverable ? 'hover:bg-slate-50 transition-colors' : '',
                   onRowClick ? 'cursor-pointer' : '',

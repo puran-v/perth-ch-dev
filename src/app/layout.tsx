@@ -5,11 +5,12 @@ import { ToastProvider } from "@/components/providers/ToastProvider";
 import { Inter } from "next/font/google";
 import "react-toastify/dist/ReactToastify.css";
 import "./globals.css";
+import "react-toastify/dist/ReactToastify.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+   weight: ["400", "500", "600", "700"],
 });
 
 // dev (jay): placeholder metadata — update title/description before go-live

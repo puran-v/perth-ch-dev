@@ -139,7 +139,7 @@ export function PendingInvitationRow({
         <div className="flex items-center gap-3 min-w-0">
           <Avatar initials={initials} />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">
+            <p className="truncate text-sm font-normal text-slate-600">
               {displayName}
             </p>
             {invitation.jobTitle && (
@@ -204,7 +204,7 @@ export function PendingInvitationRow({
         <div className="flex items-start gap-3">
           <Avatar initials={initials} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900">
+            <p className="truncate text-sm font-normal text-slate-600">
               {displayName}
             </p>
             <p className="truncate text-xs text-slate-500">

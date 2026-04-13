@@ -371,7 +371,7 @@ export default function BrandingPage() {
           loading={isSaving && saveMutation.variables?.mode === 'draft'}
           disabled={isSaving && saveMutation.variables?.mode !== 'draft'}
         >
-          Save & Draft
+          Save Draft
         </Button>
         <Button
           variant="primary"
